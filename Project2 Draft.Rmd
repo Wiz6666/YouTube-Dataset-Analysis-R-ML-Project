@@ -1,31 +1,270 @@
 ---
-title: "Project2 ML"
-author: "Wiz; XiaoZhang"
-date: "2023-09-24"
-output: html_document
----
+title: "CITS4009-project2"
+author: "Wiz ZHANG(SID:23210735)； Xiao ZHANG(SID:修正)"
 
+output:   
+  html_document:
+    highlight: haddock
+    theme: cosmo
+    code_folding: hide
+---
 ```{r setup, include=FALSE}
+#Set all code chunks to display their R code by default
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+# Part1 - Introduction
+## 1.1 - Project Background and Purpose
+  In this project, our objective is to illustrate the process of modeling by using R machine learning functions. We aim to understand and apply various stages of data science including data preparation, model building, and model evaluation. We have choosen the YouTube dataset which is shared by uni coordinator. We also use the same dataset in our Project 1. The specific contributions of each member will be separated 50-50 fairly.
+  
+## 1.2 Data Source and Characteristics
+  The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023". (https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023)
+  A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[Elgiriyewithana2023]
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# Part2 - Data Preparation and Preprocessing
 
-```{r cars}
-summary(cars)
+## 2.1 Load required R packages
+
+  We load 'ggplot2' package [@Wickham2016] for making static graphics and 'dplyr' package [@Wickham2021] for data manipulation.
+  We employ scatterplot matrices and correlation heatmaps for exploratory data analysis to understand the pairwise relationships between variables [@Friendly2002]...
+  We use the skimr package to obtain more comprehensive descriptive statistics of the numeric variables in the dataset [@McNamara et al.2021]...
+  
+```{r Library, echo=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(ggthemes)
+library(numform)
+library(treemapify)
+library(timeDate)
+library(lubridate)
+library(reshape2)
+library(ca)
+library(skimr)
+library(janitor)
+library(flextable)
+library(shiny)
+library(leaflet)
+library(maps)
+library(wordcloud)
+library(RColorBrewer)
+library(scales)
 ```
 
-## Including Plots
+## 2.2 Set plot theme 
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
+  The theme is set up to enhance the readability and interpretability of the graphs, following the best practices in data visualization [@Healy2018].
+```{r Theme Maker}
+project_theme <- theme(
+  panel.background = element_rect(fill = "#FFFBDC"),  # Light yellow background
+  panel.grid.major = element_line(color = "#FFE4A1"), # Light orange major grid lines
+  panel.grid.minor = element_blank(), # Remove minor grid lines
+  plot.title = element_text(size = 18, hjust = 0.5, color = "darkblue"),  # Title color and size
+  axis.title = element_text(size = 16, color = "darkblue"),  # Axis title color and size
+  axis.text = element_text(size = 14, color = "black"),   # Axis text color and size
+  legend.title = element_text(size = 16, color = "darkblue"), # Legend title color and size
+  legend.text = element_text(size = 14, color = "black"),   # Legend text color and size
+  legend.background = element_rect(fill = "#FFFBDC"),  # Legend background color
+  plot.background = element_rect(fill = "#FFFBDC")   # Background color of the entire plot
+)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
-shi
+## 2.3 Load the main data
+  In this part, we will load the main dataset, store the path in 'Data_path'
+```{r readfile, warning=FALSE}
+data_path <- '/Users/weisizhang/Desktop/Global YouTube Statistics.csv'
+youtube <- read.csv(data_path)
+```
+
+## 2.4 Dataset initial overview
+  Before starting in-depth analysis and modeling, it is crucial to perform an initial overview of the dataset. By using functions such as summary, str, etc., we can gain an overall understanding of the data, including data types, data distribution, missing values and possible outliers.
+
+  First, we use str command to analyze the data
+```{r str,results='hide', echo=TRUE, warning=FALSE}
+str(Youtube)
+```
+
+The "Global YouTube Statistics" dataset contains 995 observations and 28 variables. The variables can be summarized as follows:
+Numeric Variables:
+subscribers: Number of subscribers to the YouTube channel.
+video_views: Total number of video views.
+video_views_rank: Ranking based on video views.
+video_views_for_the_last_30_days: Total video views in the last 30 days.
+lowest_monthly_earnings: Lowest monthly earnings in USD.
+highest_monthly_earnings: Highest monthly earnings in USD.
+lowest_yearly_earnings: Lowest yearly earnings in USD.
+highest_yearly_earnings: Highest yearly earnings in USD.
+subscribers_for_last_30_days: Subscribers gained in the last 30 days.
+created_year: Year when the YouTube channel was created.
+created_month: Month when the YouTube channel was created.
+created_date: Date when the YouTube channel was created.
+Gross.tertiary.education.enrollment.rate: Gross tertiary education enrollment rate.
+Population: Population of the country.
+Unemployment.rate: Unemployment rate in the country.
+Urban_population: Urban population of the country.
+Latitude: Latitude coordinate of the country.
+Longitude: Longitude coordinate of the country.
+
+Integer Variables:
+rank: Rank of the YouTube channel.
+uploads: Number of video uploads.
+country_rank: Ranking based on country.
+channel_type_rank: Ranking based on channel type.
+
+Character Variables:
+Youtuber: Name of the YouTube channel.
+category: Category of the YouTube channel.
+Title: Title of the YouTube channel..
+Country: Country of the YouTube channel..
+Abbreviation: Abbreviation of the country..
+channel_type: Type of the YouTube channel..
+
+  Then we would use summary command to analyze data. 
+  we use skimr here, which is similar to summary command but it shows more descriptive statistics for numeric variables than summary command.
+```{R Skimr Summary,results='hide', echo=TRUE, warning=FALSE}
+skimr::skim(Youtube) %>%
+  flextable::flextable() 
+```
+  We can see from the standard output that 'video_views_rank' has 1 missing value, country_rank has 116, 'subscribers_for_last_30_days' has 337 the most in the whole dataset.
+  The numbers of missing value of 'Gross.tertiary.education.enrollment.rate','Population', 'Unemployment.rate', 'Urban_population', 'Latitude' are the same , so it should be a systematic missing issue. So we need to pay attention to this issue in the following data cleaning.
+  According to the numeric.hist, it seems most of the numeric variables are right skewnessed.The 'Unemployment.rate' does not look like a normal distribution,so as 'Longitude'.
+  
+  
+
+  Skewness analysis is crucial as it helps in understanding the symmetry of the data distribution [@Joanes & Gill1998]. We observe a higher percentage of right-skewed columns in our dataset, which implies that most numerical variables in our dataset have a distribution that has a tail on the right side, meaning the right side of the distribution is longer or fatter than the left side. This can impact the analysis and model performance because many statistical methods assume a normal distribution of the data. Right-skewed distributions are associated with higher values and outliers on the right side of the distribution which can greatly impact the mean and variance, and subsequently, distort the interpretation and performance of the model.
+  Addressing skewness is often important in regression models where the assumption of normally distributed residuals is made. Therefore, recognizing the presence of skewness can help us make informed decisions about data transformation techniques, such as logarithmic transformation or Box-Cox transformation, to attempt to normalize the data distribution before applying any modeling techniques. For example, this can be particularly relevant for variables like `subscribers`, `uploads`, and `lowest_monthly_earnings`, where skewness might impact the model’s ability to generalize well to unseen data and might lead to unreliable predictions or insights.
+  
+  Calculate Right skewness numbers and left skewness numbers
+```{r Skewness Calculator}
+calculate_skewness_percentage <- function(dataframe) {
+  #initialize function variables
+  right_skewed_count <- 0
+  left_skewed_count <- 0
+  column_names <- names(dataframe)
+  #count the numbers with loops
+  for (column in column_names) {
+    if (is.numeric(dataframe[[column]])) {
+      median_value <- median(dataframe[[column]], na.rm = TRUE)
+      mean_value <- mean(dataframe[[column]], na.rm = TRUE)
+      if (mean_value > median_value) {
+        right_skewed_count <- right_skewed_count +1
+      } else if (mean_value < median_value) {
+        left_skewed_count <- left_skewed_count +1
+      }
+    }
+  }
+  #calculate percentage with the count result
+  right_percentage <- round((right_skewed_count / ncol(dataframe)) * 100, 2)
+  left_percentage <- round((left_skewed_count / ncol(dataframe)) * 100, 2) 
+  
+  return(list(right_percentage, left_percentage))  
+}
+
+# Use function to get the calculation result
+results <- calculate_skewness_percentage(Youtube)
+cat("\n")
+cat("Percentage of right-skewed columns is:", results[[1]], "%\n")
+cat("Percentage of left-skewed columns is:", results[[2]], "%\n")
+
+```
+  The outcomes of our skewness analysis are telling and significant, revealing that 50% of the columns in our dataset are right-skewed, in contrast to a mere 21.43% being left-skewed. This preponderance of right-skewed columns is pivotal as it unveils a tendency for the distribution of most numerical variables to be tail-heavy on the right side, a characteristic that might have consequential implications for subsequent analyses and modeling efforts.
+  The presence of such skewed columns underlines the existence of numerous higher values and potential outliers on the right side of the distribution. These extreme values have the capability to significantly inflate the mean and variance of the data, potentially leading to distorted interpretations and undermining the reliability and robustness of our subsequent statistical models.
+  The substantial right skewness observed in specific variables such as subscribers, uploads, and lowest_monthly_earnings could particularly impact the predictive power and generalizability of the models. Such skewness could render the models less resilient and adaptive to unseen or new data, thereby possibly yielding unreliable predictions or insights.
+  Employing such transformations could help mitigate the impact of skewness and align the data more closely with the assumptions of many statistical methods, predominantly enhancing the reliability and validity of our subsequent analyses and models.
+
+  Then we use head command to keep analyzing data.
+```{r head, results='hide', echo=TRUE, warning=FALSE}
+head(Youtube,n=100)
+```
+Base on the standard output, we can see that subscribers shows how many people subscribe the Youtuber. The Title is the same as Youtuber, we need to figure out why it is the same but in two different columns. the Music Youtuber has 119000000 subsribers but only 0 uploads , so we need to make data cleaning later.
+
+
+
+
+
+
+# Reference
+@Online{Elgiriyewithana2023,
+  author = {Nidula Elgiriyewithana},
+  title = {Global YouTube Statistics 2023},
+  year = {2023},
+  month = {Aug},
+  url = {https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023},
+  note = {Accessed: yyyy-mm-dd} % replace with the actual access date
+}
+
+
+@Manual{Wickham2016,
+  title = {ggplot2: Elegant Graphics for Data Analysis},
+  author = {Hadley Wickham},
+  year = {2016},
+  publisher = {Springer-Verlag New York},
+  note = {ISBN 978-3-319-24277-4},
+  url = {https://ggplot2.tidyverse.org},
+}
+
+@Manual{Wickham2021,
+  title = {dplyr: A Grammar of Data Manipulation},
+  author = {Hadley Wickham and Romain François and Lionel Henry and Kirill Müller},
+  year = {2021},
+  note = {R package version 1.0.7},
+  url = {https://dplyr.tidyverse.org},
+}
+
+
+@Article{Friendly2002,
+  author = {Michael Friendly},
+  title = {Corrgrams: Exploratory displays for correlation matrices},
+  journal = {The American Statistician},
+  year = {2002},
+  volume = {56},
+  number = {4},
+  pages = {316–324},
+}
+
+@Manual{McNamara2021,
+  title = {skimr: Compact and Flexible Summaries of Data},
+  author = {Amelia McNamara and Hao Zhu and Eduardo Arino de la Rubia and Shannon Ellis and Julia Lowndes and Michael Quinn},
+  year = {2021},
+  note = {R package version 2.1.3},
+  url = {https://cran.r-project.org/web/packages/skimr/},
+}
+
+
+@Book{Healy2018,
+  author = {Kieran Healy},
+  title = {Data Visualization: A Practical Introduction},
+  publisher = {Princeton University Press},
+  year = {2018},
+}
+
+
+
+
+
+
+
+1.Introduction
+2.Setup
+3.Data Preparation
+4.Classification
+4.1 Target Variable
+4.2 Feature Variables
+4.3 Test and Training Sets
+4.4 Null model
+4.5 Single Variable Model
+4.6 Model Evaluation
+4.7 Naive Bayes
+4.8 Logistic Regression
+4.9 Comparison
+
+5 Clustering
+ - 5.1 Hierarchical Clustering
+5.2 Optimal Number of Clusters
+5.3 Validating Clusters
+5.4 Exploring Clusters
+5.4.1 Job Locations
+5.4.2 Salary
+5.4.3 Rating
+
