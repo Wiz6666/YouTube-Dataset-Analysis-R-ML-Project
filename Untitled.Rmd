@@ -1,6 +1,6 @@
 ---
 title: "CITS4009-project2"
-author: "Wiz ZHANG(SID:23210735)； Xiao ZHANG(SID:)"
+author: "Wiz ZHANG(SID:23210735)； Xiao ZHANG(SID:修正)"
 
 output:   
   html_document:
@@ -16,11 +16,10 @@ knitr::opts_chunk$set(echo = TRUE)
 # Part1 - Introduction
 ## 1.1 - Project Background and Purpose
   In this project, our objective is to illustrate the process of modeling by using R machine learning functions. We aim to understand and apply various stages of data science including data preparation, model building, and model evaluation. We have choosen the YouTube dataset which is shared by uni coordinator. We also use the same dataset in our Project 1. The specific contributions of each member will be separated 50-50 fairly.
+  
 ## 1.2 Data Source and Characteristics
   The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023". (https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023)
-  A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[1]
-  
-
+  A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[Elgiriyewithana2023]
 
 
 # Part2 - Data Preparation and Preprocessing
@@ -127,11 +126,16 @@ channel_type: Type of the YouTube channel..
 skimr::skim(Youtube) %>%
   flextable::flextable() 
 ```
+  We can see from the standard output that 'video_views_rank' has 1 missing value, country_rank has 116, 'subscribers_for_last_30_days' has 337 the most in the whole dataset.
+  The numbers of missing value of 'Gross.tertiary.education.enrollment.rate','Population', 'Unemployment.rate', 'Urban_population', 'Latitude' are the same , so it should be a systematic missing issue. So we need to pay attention to this issue in the following data cleaning.
+  According to the numeric.hist, it seems most of the numeric variables are right skewnessed.The 'Unemployment.rate' does not look like a normal distribution,so as 'Longitude'.
+  
+  
 
-  Skewness analysis is crucial as it helps in understanding the symmetry of the data distribution [@Joanes & Gill1998]. 
-  We observe a higher percentage of right-skewed columns in our dataset, which implies...
-
-Calculate Right skewness numbers and left skewness numbers
+  Skewness analysis is crucial as it helps in understanding the symmetry of the data distribution [@Joanes & Gill1998]. We observe a higher percentage of right-skewed columns in our dataset, which implies that most numerical variables in our dataset have a distribution that has a tail on the right side, meaning the right side of the distribution is longer or fatter than the left side. This can impact the analysis and model performance because many statistical methods assume a normal distribution of the data. Right-skewed distributions are associated with higher values and outliers on the right side of the distribution which can greatly impact the mean and variance, and subsequently, distort the interpretation and performance of the model.
+  Addressing skewness is often important in regression models where the assumption of normally distributed residuals is made. Therefore, recognizing the presence of skewness can help us make informed decisions about data transformation techniques, such as logarithmic transformation or Box-Cox transformation, to attempt to normalize the data distribution before applying any modeling techniques. For example, this can be particularly relevant for variables like `subscribers`, `uploads`, and `lowest_monthly_earnings`, where skewness might impact the model’s ability to generalize well to unseen data and might lead to unreliable predictions or insights.
+  
+  Calculate Right skewness numbers and left skewness numbers
 ```{r Skewness Calculator}
 calculate_skewness_percentage <- function(dataframe) {
   #initialize function variables
@@ -164,10 +168,12 @@ cat("Percentage of right-skewed columns is:", results[[1]], "%\n")
 cat("Percentage of left-skewed columns is:", results[[2]], "%\n")
 
 ```
-  Based on the result of Skewness test, The percentage of rigt-skewed columns is 50%, and the percentage of left-skewed columns is only 21.43%, so columns data is character so we can't make the skewness test.
-  Therefore, most of the data is right skewed. Such as subscribers; uploads; lowest_monthly_earnings.
+  The outcomes of our skewness analysis are telling and significant, revealing that 50% of the columns in our dataset are right-skewed, in contrast to a mere 21.43% being left-skewed. This preponderance of right-skewed columns is pivotal as it unveils a tendency for the distribution of most numerical variables to be tail-heavy on the right side, a characteristic that might have consequential implications for subsequent analyses and modeling efforts.
+  The presence of such skewed columns underlines the existence of numerous higher values and potential outliers on the right side of the distribution. These extreme values have the capability to significantly inflate the mean and variance of the data, potentially leading to distorted interpretations and undermining the reliability and robustness of our subsequent statistical models.
+  The substantial right skewness observed in specific variables such as subscribers, uploads, and lowest_monthly_earnings could particularly impact the predictive power and generalizability of the models. Such skewness could render the models less resilient and adaptive to unseen or new data, thereby possibly yielding unreliable predictions or insights.
+  Employing such transformations could help mitigate the impact of skewness and align the data more closely with the assumptions of many statistical methods, predominantly enhancing the reliability and validity of our subsequent analyses and models.
 
-  We use head command to keep analyzing data.
+  Then we use head command to keep analyzing data.
 ```{r head, results='hide', echo=TRUE, warning=FALSE}
 head(Youtube,n=100)
 ```
@@ -179,7 +185,14 @@ Base on the standard output, we can see that subscribers shows how many people s
 
 
 # Reference
-[1]. Nidula Elgiriyewithana. (2023 Aug). Global YouTube Statistics 2023 https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023
+@Online{Elgiriyewithana2023,
+  author = {Nidula Elgiriyewithana},
+  title = {Global YouTube Statistics 2023},
+  year = {2023},
+  month = {Aug},
+  url = {https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023},
+  note = {Accessed: yyyy-mm-dd} % replace with the actual access date
+}
 
 
 @Manual{Wickham2016,
@@ -255,9 +268,3 @@ Base on the standard output, we can see that subscribers shows how many people s
 5.4.2 Salary
 5.4.3 Rating
 
-## Part1
-Introduction
-The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023".
-https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023
-
-A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[1]
