@@ -1,6 +1,6 @@
 ---
 title: "CITS4009-project2"
-author: "Wiz ZHANG(SID:23210735)； Xiao ZHANG(SID:修正)"
+author: "Wiz ZHANG(SID:23210735)； Xiao ZHANG"
 
 output:   
   html_document:
@@ -73,8 +73,8 @@ project_theme <- theme(
 ## 2.3 Load the main data
   In this part, we will load the main dataset, store the path in 'Data_path'
 ```{r readfile, warning=FALSE}
-data_path <- '/Users/weisizhang/Desktop/Global YouTube Statistics.csv'
-raw_data <- read.csv(data_path)
+data_path <- 'Global YouTube Statistics.csv'
+raw_data <- read.csv(data_path,encoding = "UTF-8")
 ```
 
 ## 2.4 Dataset initial overview
@@ -123,7 +123,7 @@ channel_type: Type of the YouTube channel..
   Then we would use summary command to analyze data. 
   we use skimr here, which is similar to summary command but it shows more descriptive statistics for numeric variables than summary command.
 ```{R Skimr Summary,results='hide', echo=TRUE, warning=FALSE}
-skimr::skim(raw_data) %>%
+skimr::skim(raw_data) |>
   flextable::flextable() 
 ```
 
@@ -181,7 +181,7 @@ Base on the standard output, we can see that subscribers shows how many people s
 
 # Part3 - Data Preparation and Preprocessing
 
-## 3.1 Ceck column names and make adjustments
+## 3.1 Check column names and make adjustments
 
   First, we use names() command to check each variable name.
 ```{r names,results='hide'}
@@ -195,7 +195,7 @@ names(raw_data)
 2.Spaces are converted to underscores
 3.Non-alphanumeric characters are removed
 4.Numbers before text moved to the end
-5.Underline after keyword in R
+5.Underline after keyword in R)
 ```{r Name Changer}
 raw_data <- janitor::clean_names(raw_data)
 
@@ -234,7 +234,8 @@ print(data_sample)
   From the standard output first, we know that we need to handle the missing values; 'created_month' should change from char type to numeric type this is useful for following analysis; 'category','country','channel_type','abbreviation' shoule be factor type which is better for following analysis;handle the outliers according to the skimmr result.
   
 ## 3.3 Add missing value indicator for each column if the value is NA mark 1 either mark 0
-在调整缺失值之前，添加缺失值指标，可以确认是否为原数据
+
+Before adjusting missing values, it's essential to add the NA marker to facilitate a comparison between the original and adjusted data. By doing this, we can label all the NA values without modifying the original dataset. This approach safeguards against unintentional data loss and ensures the preservation of data integrity. Moreover, it aids in tracking the progress of subsequent processes. 在调整缺失值之前，添加缺失值指标，可以确认是否为原数据
 ```{r missing value indicator}
 for (col in names(raw_data)) {
   indicator_name <- paste0(col, "_NA_indicator")
@@ -243,14 +244,14 @@ for (col in names(raw_data)) {
 ```
 
 ## 3.4 Handle Missing value
-
+To address missing values, we have observed three types of characters representing missing data: 0, "NaN," and "nan." Our objective is to convert these representations into NA and subsequently count the number of NA values in each row. 
 先把特殊值（0 ；NaN；nan）转换NA，紧接着计算每一列的NA数量
 ```{r Kill 0&NA and delete NA}
 #Change 0 or 'nan' or 'NaN' to NA value
 #Char columns
 raw_data[raw_data == 'nan' | raw_data == "NaN" | raw_data == 0] <- NA
 #Numeric columns
-raw_data <- raw_data %>%
+raw_data <- raw_data |>
   mutate(across(where(is.numeric), ~ifelse(is.nan(.), NA, .)))
 ```
 
@@ -275,6 +276,17 @@ data.frame(Column = names(nacounts[hasNA]),
            Missing_Values = nacounts[hasNA], 
            Percentage_Missing = napercents[hasNA])
 ```
+Based on the results, it's evident that many columns contain a significant number of missing values. However, our dataset only consists of 995 rows. If we were to delete these missing values extensively, we might end up with an insufficient amount of data for subsequent modeling. Therefore, we've devised different approaches to handle different types of variables.
+
+Before addressing the missing values, it's essential to identify the variables that we won't be processing and provide an explanation.
+Firstly, we've chosen not to process the 'abbreviation' column. Despite being able to replace its missing values with 'unknown,' the sheer quantity of missing values (122 in total) makes it impractical to proceed with this column.
+Additionally, we've decided not to handle the 'latitude' and 'longitude' columns. These columns lack provided geographical information, and the proportion of missing values exceeds 10%, which is relatively high. Consequently, these two variables aren't suitable for the upcoming modeling process.
+Lastly, we won't be dealing with the 'rank,' 'subscribers,' 'Title,' and 'Youtuber' columns. This decision is based on the fact that these columns do not contain any missing values.
+Now, we need to decide on the methods to use for different columns. First, let's consider the 'video views' column, which has few missing values. We can choose between deletion or imputation with the median. However, since we want to maintain an adequate number of rows for modeling, we opt for replacing the missing values with the median.As for the 'Earnings' variable, it follows a skewed distribution. Therefore, we plan to use median imputation.Regarding the time-related variables, they cannot be inferred from other variables, and they are not continuous time series data, making ARIMA modeling inapplicable. Fortunately, there are only 5 rows with missing values, accounting for just 0.5% of the entire dataset. Our chosen approach is to delete rows with missing time values and not impute them.
+
+In summary, the numeric variables that require processing are "video_views",
+"uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population", 
+and the categorical variables to be addressed are "category", "country","country_abbr","channel_type".
 
 我们发现很多行是大面积丢失，
 首先，我们只有995 rows的数据，所以我们必须尽力不要删除任何行，否则我们没有足够的数据进行接下来的分析。我们决定插补数据，对于分类变量我们使用Unknown 填补，代表缺失
@@ -301,7 +313,7 @@ c("category", "country","country_abbr","channel_type")
 
 
 我们首先处理以上数字类型列。使用中位数填充缺失值
-Use Medium to replace the NA
+First, we are going to handle numeric variable, using medium to replace the NA
   Base on the result of skewness test, most of data is right skewed, so we should use medium which is better than using mean value, because mean value would change the right skewed structure.
 Here, I change the columns where more than 10% of data is NA.
 ```{r Fill with medium}
@@ -314,7 +326,8 @@ for (col in change_to_median_cols) {
 ```
 
 
-这里将需要处理的文本列使用“Unknown”转换NA值 
+这里将需要处理的文本列使用“Unknown”转换NA值
+Secondly, we change the NAs in cateogrical variables into "Unknown"
 ```{r Unknown changer}
 character_columns <- c("category", "country","country_abbr","channel_type")
   
@@ -323,13 +336,14 @@ for (col in character_columns) {
 }
 ```
 
-
+Delete all the missing rows (5 rows) in the time column. Since there are only 5 rows, it does not affect the subsequent analysis. At the same time, delete the rows with the channel creation year less than 2005, because the YouTube company was created in 2005.
 删除所有时间列是缺失的行（5行），由于只有5行不影响接下来的分析，同时删除频道创建年份小于2005的行，因为youtube公司的创建时间是2005年.
 ```{r}
 raw_data <- raw_data %>%
   filter(!is.na(created_year) & !is.na(created_month) & !is.na(created_date) & created_year >= 2005)
 ```
 
+Overall, only 6 rows of data were deleted, which does not affect the subsequent analysis because it only accounts for 0.6% of the data.
 总共删除了6行数据，并不影响接下来的分析，只占了数据的0.6%
 
 
@@ -343,6 +357,7 @@ rm(raw_data_unique)
 
 
 ## 3.6 Change the data type from character to factor for 'category', 'country', 'channel type'
+Change some categorical variable to factors to prepare for Classification
 将部分文本列调整为factor，为Classification做准备
 ```{r Factor type}
 factor_columns <- c("category", "country","country_abbr", "channel_type")
@@ -351,7 +366,7 @@ raw_data <- raw_data %>%
   mutate(across(all_of(factor_columns), as.factor))
 ```
 
-### 3.7 Add new column which might be used in the future.
+## 3.7 Add new column which might be used in the future.
 3.7.1 Add full time column
 添加时间完整的列
 ```{r full time}
@@ -375,20 +390,69 @@ raw_data$full_date <- as.Date(paste(raw_data$created_year,
                              format = "%Y-%m-%d")
 ```
 
-在Project1 中，我们修改了created_month，将字符月份修改为数字月份方便分析，这里我们直接删除原有的时间列，只留下created_date列
-
-对于Youtuber名字以及Title，存在由于编码问题文件本身的名字乱码，跟据Professor Wei的要求，我们在此跳过对于名字编码问题的处理。
-
-开始删除不参与接下来分析的列，然后保存变量
-3.3.1 Backup the original data, build up a new variable called "Youtube_cleaned"
+## 3.8 Handle outliers
+### 3.8.1 Backup the original data, build up a new variable called "Youtube_cleaned"
 ```{r Backup}
-Youtube_cleaned <- Youtube
+Youtube_cleaned <- raw_data
+```
+### 3.8.2 Delete some redundent colunms
+In Project1, we modified created_month, changing the character month to a numeric month to facilitate analysis. Here we directly delete the original time column, leaving only the created_date column.
+Regarding the Youtuber name and Title, there is a problem that the name of the file itself is garbled due to encoding issues, and according to Professor Wei's request, we will skip the processing of the name encoding issue here.
+Overall, we will detele four colums which are "youtuber", "title", "created_year" and "created_month".
+```{r}
+deletion_col <- names(Youtube_cleaned) %in% c("youtuber", "title", "created_year","created_month")
+Youtube_cleaned <- Youtube_cleaned[!deletion_col]
+```
+### 3.8.3 Identify outliers
+Create a function to identify outliers for all variables in the dataset
+```{r}
+detect_outliers <- function(data, method = "zscore", threshold = 3) {
+  outliers <- data.frame()
+  for (col in colnames(data)) {
+    if (is.numeric(data[[col]])) {
+      if (method == "zscore") {
+        z <- (data[[col]] - mean(data[[col]])) / sd(data[[col]])
+        outliers <- rbind(outliers, data[abs(z) > threshold, ])
+      } else if (method == "iqr") {
+        Q1 <- quantile(data[[col]], 0.25)
+        Q3 <- quantile(data[[col]], 0.75)
+        IQR <- Q3 - Q1
+        outliers <- rbind(outliers, data[data[[col]] < (Q1 - 1.5 * IQR) | data[[col]] > (Q3 + 1.5 * IQR), ])
+      }
+    }
+  }
+  return(outliers)
+}
+find_outliers <- detect_outliers(Youtube_cleaned[c(1:18)])
+print(find_outliers)
 ```
 
+Also we need to visualize all the outliers using boxplot
+```{r}
+# 循环绘制每列数据的boxplot
+for (col in colnames(Youtube_cleaned[c(1:18)])) {
+  boxplot(Youtube_cleaned[, col], main=col)
+}
 
-3.8 处理异常值
-处理异常值有很多方法，比如
-
+```
+### 3.8.4 Transform data
+First,identify which variables are numerical or categorical.
+```{r}
+catVars <- Youtube_cleaned[sapply(Youtube_cleaned[, colnames(Youtube_cleaned[c(1:18)])],class) %in% c('factor', 'character')]
+numericVars <- Youtube_cleaned[sapply(Youtube_cleaned[, colnames(Youtube_cleaned[c(1:18)])],class) %in% c('numeric', 'integer')]
+numeriCol <- names(Youtube_cleaned)[sapply(Youtube_cleaned[c(1:18)], is.numeric)]
+```
+Use winsorizing to set values greater than the 95th percentile in the dataset to the 95th percentile value
+```{r}
+truncate_tail <- function(data, column_names, percentile = 95) {
+  for (col in column_names) {
+    q <- quantile(data[[col]], probs = percentile / 100)
+    data[data[[col]] > q, col] <- q
+  }
+  return(data)
+}
+modified_data <- truncate_tail(Youtube_cleaned, numeriCol, percentile = 95)
+```
 
 
 
