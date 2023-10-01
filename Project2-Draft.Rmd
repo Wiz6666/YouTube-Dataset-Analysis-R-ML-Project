@@ -1,0 +1,636 @@
+---
+title: "CITS4009-project2"
+author: "Wiz ZHANG(SID:23210735)； Xiao ZHANG"
+
+output:   
+  html_document:
+    highlight: haddock
+    theme: cosmo
+    code_folding: hide
+---
+```{r setup, include=FALSE}
+#Set all code chunks to display their R code by default
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+# Part1 - Introduction
+## 1.1 - Project Background and Purpose
+  In this project, our objective is to illustrate the process of modeling by using R machine learning functions. We aim to understand and apply various stages of data science including data preparation, model building, and model evaluation. We have choosen the YouTube dataset which is shared by uni coordinator. We also use the same dataset in our Project 1. The specific contributions of each member will be separated 50-50 fairly.
+  
+## 1.2 Data Source and Characteristics
+  The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023". (https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023)
+  A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[Elgiriyewithana2023]
+
+
+# Part2 - Setup
+
+## 2.1 Load required R packages
+
+  We load 'ggplot2' package [@Wickham2016] for making static graphics and 'dplyr' package [@Wickham2021] for data manipulation.
+  We employ scatterplot matrices and correlation heatmaps for exploratory data analysis to understand the pairwise relationships between variables [@Friendly2002]...
+  We use the skimr package to obtain more comprehensive descriptive statistics of the numeric variables in the dataset [@McNamara et al.2021]...
+  
+```{r Library, echo=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(ggthemes)
+library(numform)
+library(treemapify)
+library(timeDate)
+library(lubridate)
+library(reshape2)
+library(ca)
+library(skimr)
+library(janitor)
+library(flextable)
+library(shiny)
+library(leaflet)
+library(maps)
+library(wordcloud)
+library(RColorBrewer)
+library(scales)
+```
+
+## 2.2 Set plot theme 
+
+  The theme is set up to enhance the readability and interpretability of the graphs, following the best practices in data visualization [@Healy2018].
+```{r Theme Maker}
+project_theme <- theme(
+  panel.background = element_rect(fill = "#FFFBDC"),  # Light yellow background
+  panel.grid.major = element_line(color = "#FFE4A1"), # Light orange major grid lines
+  panel.grid.minor = element_blank(), # Remove minor grid lines
+  plot.title = element_text(size = 18, hjust = 0.5, color = "darkblue"),  # Title color and size
+  axis.title = element_text(size = 16, color = "darkblue"),  # Axis title color and size
+  axis.text = element_text(size = 14, color = "black"),   # Axis text color and size
+  legend.title = element_text(size = 16, color = "darkblue"), # Legend title color and size
+  legend.text = element_text(size = 14, color = "black"),   # Legend text color and size
+  legend.background = element_rect(fill = "#FFFBDC"),  # Legend background color
+  plot.background = element_rect(fill = "#FFFBDC")   # Background color of the entire plot
+)
+```
+
+## 2.3 Load the main data
+  In this part, we will load the main dataset, store the path in 'Data_path'
+```{r readfile, warning=FALSE}
+data_path <- 'Global YouTube Statistics.csv'
+raw_data <- read.csv(data_path,encoding = "UTF-8")
+```
+
+## 2.4 Dataset initial overview
+  Before starting in-depth analysis and modeling, it is crucial to perform an initial overview of the dataset. By using functions such as summary, str, etc., we can gain an overall understanding of the data, including data types, data distribution, missing values and possible outliers.
+    This is the process that we already done in Project 1, according to Professor Wei, we don't need to do it again so we pass here. So we shorten the content about dataset overview. Mainly is using str; summary;head command to check dataset overview, we also use a function to check dataset skewness. We also shorten or even skip the EDA part in Project 2 report.
+  First, we use str command to analyze the data
+```{r str,results='hide', echo=TRUE, warning=FALSE}
+str(raw_data)
+```
+
+The "Global YouTube Statistics" dataset contains 995 observations and 28 variables. The variables can be summarized as follows:
+Numeric Variables:
+subscribers: Number of subscribers to the YouTube channel.
+video_views: Total number of video views.
+video_views_rank: Ranking based on video views.
+video_views_for_the_last_30_days: Total video views in the last 30 days.
+lowest_monthly_earnings: Lowest monthly earnings in USD.
+highest_monthly_earnings: Highest monthly earnings in USD.
+lowest_yearly_earnings: Lowest yearly earnings in USD.
+highest_yearly_earnings: Highest yearly earnings in USD.
+subscribers_for_last_30_days: Subscribers gained in the last 30 days.
+created_year: Year when the YouTube channel was created.
+created_month: Month when the YouTube channel was created.
+created_date: Date when the YouTube channel was created.
+Gross.tertiary.education.enrollment.rate: Gross tertiary education enrollment rate.
+Population: Population of the country.
+Unemployment.rate: Unemployment rate in the country.
+Urban_population: Urban population of the country.
+Latitude: Latitude coordinate of the country.
+Longitude: Longitude coordinate of the country.
+
+Integer Variables:
+rank: Rank of the YouTube channel.
+uploads: Number of video uploads.
+country_rank: Ranking based on country.
+channel_type_rank: Ranking based on channel type.
+
+Character Variables:
+Youtuber: Name of the YouTube channel.
+category: Category of the YouTube channel.
+Title: Title of the YouTube channel..
+Country: Country of the YouTube channel..
+Abbreviation: Abbreviation of the country..
+channel_type: Type of the YouTube channel..
+
+  Then we would use summary command to analyze data. 
+  we use skimr here, which is similar to summary command but it shows more descriptive statistics for numeric variables than summary command.
+```{R Skimr Summary,results='hide', echo=TRUE, warning=FALSE}
+skimr::skim(raw_data) |>
+  flextable::flextable() 
+```
+
+  We can see from the standard output that 'video_views_rank' has 1 missing value, country_rank has 116, 'subscribers_for_last_30_days' has 337 the most in the whole dataset.
+  The numbers of missing value of 'Gross.tertiary.education.enrollment.rate','Population', 'Unemployment.rate', 'Urban_population', 'Latitude' are the same , so it should be a systematic missing issue. So we need to pay attention to this issue in the following data cleaning.
+  According to the numeric.hist, it seems most of the numeric variables are right skewnessed.The 'Unemployment.rate' does not look like a normal distribution,so as 'Longitude'.
+  Skewness analysis is crucial as it helps in understanding the symmetry of the data distribution [@Joanes & Gill1998]. We observe a higher percentage of right-skewed columns in our dataset, which implies that most numerical variables in our dataset have a distribution that has a tail on the right side, meaning the right side of the distribution is longer or fatter than the left side. This can impact the analysis and model performance because many statistical methods assume a normal distribution of the data. Right-skewed distributions are associated with higher values and outliers on the right side of the distribution which can greatly impact the mean and variance, and subsequently, distort the interpretation and performance of the model.
+  Addressing skewness is often important in regression models where the assumption of normally distributed residuals is made. Therefore, recognizing the presence of skewness can help us make informed decisions about data transformation techniques, such as logarithmic transformation or Box-Cox transformation, to attempt to normalize the data distribution before applying any modeling techniques. For example, this can be particularly relevant for variables like `subscribers`, `uploads`, and `lowest_monthly_earnings`, where skewness might impact the model’s ability to generalize well to unseen data and might lead to unreliable predictions or insights.
+  
+  Calculate Right skewness numbers and left skewness numbers
+```{r Skewness Calculator}
+calculate_skewness_percentage <- function(dataframe) {
+  #initialize function variables
+  right_skewed_count <- 0
+  left_skewed_count <- 0
+  column_names <- names(dataframe)
+  #count the numbers with loops
+  for (column in column_names) {
+    if (is.numeric(dataframe[[column]])) {
+      median_value <- median(dataframe[[column]], na.rm = TRUE)
+      mean_value <- mean(dataframe[[column]], na.rm = TRUE)
+      if (mean_value > median_value) {
+        right_skewed_count <- right_skewed_count +1
+      } else if (mean_value < median_value) {
+        left_skewed_count <- left_skewed_count +1
+      }
+    }
+  }
+  #calculate percentage with the count result
+  right_percentage <- round((right_skewed_count / ncol(dataframe)) * 100, 2)
+  left_percentage <- round((left_skewed_count / ncol(dataframe)) * 100, 2) 
+  
+  return(list(right_percentage, left_percentage))  
+}
+
+# Use function to get the calculation result
+results <- calculate_skewness_percentage(raw_data)
+cat("\n")
+cat("Percentage of right-skewed columns is:", results[[1]], "%\n")
+cat("Percentage of left-skewed columns is:", results[[2]], "%\n")
+
+```
+  The outcomes of our skewness analysis are telling and significant, revealing that 50% of the columns in our dataset are right-skewed, in contrast to a mere 21.43% being left-skewed. This preponderance of right-skewed columns is pivotal as it unveils a tendency for the distribution of most numerical variables to be tail-heavy on the right side, a characteristic that might have consequential implications for subsequent analyses and modeling efforts.
+  The presence of such skewed columns underlines the existence of numerous higher values and potential outliers on the right side of the distribution. These extreme values have the capability to significantly inflate the mean and variance of the data, potentially leading to distorted interpretations and undermining the reliability and robustness of our subsequent statistical models.
+  The substantial right skewness observed in specific variables such as subscribers, uploads, and lowest_monthly_earnings could particularly impact the predictive power and generalizability of the models. Such skewness could render the models less resilient and adaptive to unseen or new data, thereby possibly yielding unreliable predictions or insights.
+  Employing such transformations could help mitigate the impact of skewness and align the data more closely with the assumptions of many statistical methods, predominantly enhancing the reliability and validity of our subsequent analyses and models.
+
+  Then we use head command to keep analyzing data.
+```{r head, results='hide', echo=TRUE, warning=FALSE}
+head(raw_data,n=100)
+```
+Base on the standard output, we can see that subscribers shows how many people subscribe the Youtuber. The Title is the same as Youtuber, we need to figure out why it is the same but in two different columns. the Music Youtuber has 119000000 subsribers but only 0 uploads , so we need to make data cleaning later.
+
+
+
+# Part3 - Data Preparation and Preprocessing
+
+## 3.1 Check column names and make adjustments
+
+  First, we use names() command to check each variable name.
+```{r names,results='hide'}
+names(raw_data)
+```
+
+  Then , we use janitor package and rename function adjust variable names to ensure uniform formatting.
+  
+  janitor::clean_names() is a function in the package whose main purpose is to convert the column names of dataframes into a clean, uniform format. Here is the main logic and rules of this function:
+1.All characters to lowercase
+2.Spaces are converted to underscores
+3.Non-alphanumeric characters are removed
+4.Numbers before text moved to the end
+5.Underline after keyword in R)
+```{r Name Changer}
+raw_data <- raw_data |> janitor::clean_names()
+
+# Print new names to ensure every name is acceptable.
+print(colnames(raw_data))
+```
+
+  From the output result we can see most of the variable names have been adjusted properly. But some of them still need manual adjustment for better understanding and clearness.
+
+  
+## 3.2 Inspect & Adjust data types
+Use sapply function to check data types, adjust wrong data typs.
+```{r Data type, results='hide', echo=TRUE,warning=FALSE}
+data_types <- sapply(raw_data,class)
+data_sample <- sapply(raw_data,head)
+print(data_types)
+print(data_sample)
+```
+
+  From the standard output first, we know that we need to handle the missing values; 'created_month' should change from char type to numeric type this is useful for following analysis; 'category','country','channel_type','abbreviation' shoule be factor type which is better for following analysis;handle the outliers according to the skimmr result.
+  
+## 3.3 Add missing value indicator for each column if the value is NA mark 1 either mark 0
+
+Before adjusting missing values, it's essential to add the NA marker to facilitate a comparison between the original and adjusted data. By doing this, we can label all the NA values without modifying the original dataset. This approach safeguards against unintentional data loss and ensures the preservation of data integrity. Moreover, it aids in tracking the progress of subsequent processes. 在调整缺失值之前，添加缺失值指标，可以确认是否为原数据
+```{r missing value indicator}
+for (col in names(raw_data)) {
+  indicator_name <- paste0(col, "_NA_indicator")
+  raw_data[[indicator_name]] <- as.integer(is.na(raw_data[[col]]))
+}
+```
+
+## 3.4 Handle Missing value
+To address missing values, we have observed three types of characters representing missing data: 0, "NaN," and "nan." Our objective is to convert these representations into NA and subsequently count the number of NA values in each row. 
+先把特殊值（0 ；NaN；nan）转换NA，紧接着计算每一列的NA数量
+```{r Kill 0&NA and delete NA}
+#Change 0 or 'nan' or 'NaN' to NA value
+#Char columns
+raw_data[raw_data == 'nan' | raw_data == "NaN" | raw_data == 0] <- NA
+#Numeric columns
+raw_data <- raw_data |>
+  mutate(across(where(is.numeric), ~ifelse(is.nan(.), NA, .)))
+```
+
+使用函数计算每一列的NA值
+Use function to calculate how many missing values in each column, handle them.
+```{r col_NA calculator}
+# Calculate missing value number
+count_missing <- function(df) {
+  sapply(df, FUN = function(col) sum(is.na(col)) )
+}
+# Calculate percentage of missing value
+percentage_missing <- function(df) {
+  sapply(df, FUN = function(col) round(sum(is.na(col)) / length(col) * 100, 2) )
+}
+
+nacounts <- count_missing(raw_data)
+napercents <- percentage_missing(raw_data)
+
+# output the result
+hasNA = which(nacounts > 0)
+data.frame(Column = names(nacounts[hasNA]), 
+           Missing_Values = nacounts[hasNA], 
+           Percentage_Missing = napercents[hasNA])
+```
+Based on the results, it's evident that many columns contain a significant number of missing values. However, our dataset only consists of 995 rows. If we were to delete these missing values extensively, we might end up with an insufficient amount of data for subsequent modeling. Therefore, we've devised different approaches to handle different types of variables.
+
+Before addressing the missing values, it's essential to identify the variables that we won't be processing and provide an explanation.
+Firstly, we've chosen not to process the 'abbreviation' column. Despite being able to replace its missing values with 'unknown,' the sheer quantity of missing values (122 in total) makes it impractical to proceed with this column.
+Additionally, we've decided not to handle the 'latitude' and 'longitude' columns. These columns lack provided geographical information, and the proportion of missing values exceeds 10%, which is relatively high. Consequently, these two variables aren't suitable for the upcoming modeling process.
+Lastly, we won't be dealing with the 'rank,' 'subscribers,' 'Title,' and 'Youtuber' columns. This decision is based on the fact that these columns do not contain any missing values.
+Now, we need to decide on the methods to use for different columns. First, let's consider the 'video views' column, which has few missing values. We can choose between deletion or imputation with the median. However, since we want to maintain an adequate number of rows for modeling, we opt for replacing the missing values with the median.As for the 'Earnings' variable, it follows a skewed distribution. Therefore, we plan to use median imputation.Regarding the time-related variables, they cannot be inferred from other variables, and they are not continuous time series data, making ARIMA modeling inapplicable. Fortunately, there are only 5 rows with missing values, accounting for just 0.5% of the entire dataset. Our chosen approach is to delete rows with missing time values and not impute them.
+
+In summary, the numeric variables that require processing are "video_views",
+"uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population", 
+and the categorical variables to be addressed are "category", "country","country_abbr","channel_type".
+
+我们发现很多行是大面积丢失，
+首先，我们只有995 rows的数据，所以我们必须尽力不要删除任何行，否则我们没有足够的数据进行接下来的分析。我们决定插补数据，对于分类变量我们使用Unknown 填补，代表缺失
+
+1. Video Views
+缺失值很少，考虑删除或者中位数插补。但是我们尽量不删除，切数据偏态分布，所以使用中位数填补。
+2.Country & Abbreviation
+ 虽然可以使用Unknown 更换缺失值，但是总共缺失122个数值，数据缺失过大不适用于接下来的分析工作
+3. Earnings
+由于是偏态分布的数据，考虑中位数插补
+4.经纬度
+没有可以使用的地理信息，缺失占10%以上，这里考虑无视。不进行到接下来的机器学习分析当中
+5.时间变量
+无法从其他变量推断，不是连续的时间序列数据，无法使用ARIMA模型推断，但是只有5 rows是缺少的，只占了全部数据的0.5%，删除没有时间的行, 不填补时间的缺失值
+6.不处理rank；subscribers；Title;Youtuber没有发现缺失值
+
+          
+需要处理的数字类型列：
+c("video_views",
+"uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population")	
+
+所有文本类型列：
+c("category", "country","country_abbr","channel_type")
+
+
+我们首先处理以上数字类型列。使用中位数填充缺失值
+First, we are going to handle numeric variable, using medium to replace the NA
+  Base on the result of skewness test, most of data is right skewed, so we should use medium which is better than using mean value, because mean value would change the right skewed structure.
+Here, I change the columns where more than 10% of data is NA.
+```{r Fill with medium}
+change_to_median_cols <- c("video_views",
+"uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population")
+for (col in change_to_median_cols) {
+    median_val <- median(raw_data[[col]], na.rm = TRUE)
+    raw_data[[col]][is.na(raw_data[[col]])] <- median_val
+}
+```
+
+
+这里将需要处理的文本列使用“Unknown”转换NA值
+Secondly, we change the NAs in cateogrical variables into "Unknown"
+```{r Unknown changer}
+character_columns <- c("category", "country","abbreviation","channel_type")
+
+for (col in character_columns) {
+  if (any(is.na(raw_data[[col]]))) {
+    raw_data[[col]][is.na(raw_data[[col]])] <- "Unknown"
+  }
+}
+
+```
+
+Delete all the missing rows (5 rows) in the time column. Since there are only 5 rows, it does not affect the subsequent analysis. At the same time, delete the rows with the channel creation year less than 2005, because the YouTube company was created in 2005.
+删除所有时间列是缺失的行（5行），由于只有5行不影响接下来的分析，同时删除频道创建年份小于2005的行，因为youtube公司的创建时间是2005年.
+```{r}
+raw_data <- raw_data %>%
+  filter(!is.na(created_year) & !is.na(created_month) & !is.na(created_date) & created_year >= 2005)
+```
+
+Overall, only 6 rows of data were deleted, which does not affect the subsequent analysis because it only accounts for 0.6% of the data.
+总共删除了6行数据，并不影响接下来的分析，只占了数据的0.6%
+
+
+## 3.5 Handle repeating lines
+```{r Inpsect repeat lines}
+# Use unique function handle repeating lines
+raw_data_unique <- unique(raw_data)
+raw_data <- raw_data_unique
+rm(raw_data_unique)
+```
+
+
+## 3.6 Change the data type from character to factor for 'category', 'country', 'channel type'
+Change some categorical variable to factors to prepare for Classification
+将部分文本列调整为factor，为Classification做准备
+```{r Factor type}
+factor_columns <- c("category", "country","abbreviation", "channel_type")
+#Use mutate adjust factor_columns, change then to factor type
+raw_data <- raw_data %>%
+  mutate(across(all_of(factor_columns), as.factor))
+```
+
+## 3.7 Add new column which might be used in the future.
+3.7.1 Add full time column
+添加时间完整的列
+```{r full time}
+# First, ensure that the 'created_date' column is in integer format
+raw_data$created_date <- as.integer(as.character(raw_data$created_date))
+
+# Define a vector of month names
+month_names <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# Create a vector of two-digit month numbers using sprintf
+month_numbers <- sprintf("%02d", 1:12)
+
+# Create a mapping between month names and month numbers
+month_mapping <- setNames(month_numbers, month_names)
+
+# Update the 'full_date' column by combining year, month, and day
+raw_data$full_date <- as.Date(paste(raw_data$created_year, 
+                                   raw_data$created_month %>% match(month_names) %>% month_mapping[.],
+                                   sprintf("%02d", raw_data$created_date), 
+                                   sep = "-"), 
+                             format = "%Y-%m-%d")
+```
+
+## 3.8 Handle outliers
+### 3.8.1 Backup the original data, build up a new variable called "Youtube_cleaned"
+```{r Backup}
+Youtube_cleaned <- raw_data
+```
+### 3.8.2 Delete some redundent colunms
+In Project1, we modified created_month, changing the character month to a numeric month to facilitate analysis. Here we directly delete the original time column, leaving only the created_date column.
+Regarding the Youtuber name and Title, there is a problem that the name of the file itself is garbled due to encoding issues, and according to Professor Wei's request, we will skip the processing of the name encoding issue here.
+Overall, we will detele four colums which are "youtuber", "title", "created_year" and "created_month".
+```{r}
+deletion_col <- names(Youtube_cleaned) %in% c("youtuber", "title", "created_year","created_month")
+Youtube_cleaned <- Youtube_cleaned[!deletion_col]
+```
+### 3.8.3 Identify outliers
+Create a function to identify and count outliers for all variables in the dataset
+```{r}
+detect_outliers <- function(data, method = "zscore", threshold = 3) {
+  outliers <- data.frame()
+  outlier_count <- 0  
+
+  for (col in colnames(data)) {
+    if (is.numeric(data[[col]])) {
+      if (method == "zscore") {
+        z <- (data[[col]] - mean(data[[col]])) / sd(data[[col]])
+        outlier_rows <- data[abs(z) > threshold, ]
+        outlier_count <- outlier_count + nrow(outlier_rows)
+        outliers <- rbind(outliers, outlier_rows)
+      } else if (method == "iqr") {
+        Q1 <- quantile(data[[col]], 0.25)
+        Q3 <- quantile(data[[col]], 0.75)
+        IQR <- Q3 - Q1
+        outlier_rows <- data[data[[col]] < (Q1 - 1.5 * IQR) | data[[col]] > (Q3 + 1.5 * IQR), ]
+        outlier_count <- outlier_count + nrow(outlier_rows)
+        outliers <- rbind(outliers, outlier_rows)
+      }
+    }
+  }
+  return(list(outliers = outliers, count = outlier_count))  
+}
+
+result <- detect_outliers(Youtube_cleaned[c(1:18)])
+ 
+
+```
+
+Also we need to visualize all the outliers using boxplot
+```{r,fig.width=16,fig.height=22}
+long_data <- reshape2::melt(Youtube_cleaned[, 1:18], id.vars = NULL)
+
+# 绘制箱线图并使用facet_wrap将它们分组显示
+ggplot(long_data, aes(x = variable, y = value)) +
+  geom_boxplot() +
+  labs(x = NULL, y = NULL) +
+  facet_wrap(~ variable, scales = "free") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+### 3.8.4 Transform data
+First,identify which variables are numerical or categorical.
+```{r}
+catVars <- Youtube_cleaned[sapply(Youtube_cleaned[, colnames(Youtube_cleaned[c(1:18)])],class) %in% c('factor', 'character')]
+numericVars <- Youtube_cleaned[sapply(Youtube_cleaned[, colnames(Youtube_cleaned[c(1:18)])],class) %in% c('numeric', 'integer')]
+numeriCol <- names(Youtube_cleaned)[sapply(Youtube_cleaned[c(1:18)], is.numeric)]
+```
+Use winsorizing to set values greater than the 95th percentile in the dataset to the 95th percentile value.
+Using this method can maintain most of the information of the original data and reduce the impact of outliers on the model.
+```{r}
+truncate_tail <- function(data, column_names, percentile = 95) {
+  for (col in column_names) {
+    q <- quantile(data[[col]], probs = percentile / 100, na.rm = TRUE)
+    data[complete.cases(data) & data[[col]] > q, col] <- q
+  }
+  return(data)
+}
+
+modified_data <- truncate_tail(Youtube_cleaned[c(1:18)], numeriCol, percentile = 95)
+
+```
+### 3.8.5 Visualize possible variables
+According to project1, we have preliminarily studied the interrelationships of some variables, and here we continue to conduct in-depth research on them.
+First, we select some single variables and study the trends of these single variables based on graphics and so on. In single variables, our goal is to predict revenue, subscriptions, and channel viewing.
+Take a preliminary look at each variable through visualization.
+Let's look at the situations of the earnings.
+```{r,fig.width=16,fig.height=13}
+p1 <- ggplot(data = Youtube_cleaned) +
+  geom_density(aes(x = log(lowest_monthly_earnings), fill = "Lowest Monthly Earnings"), alpha = 0.5) +
+  geom_density(aes(x = log(highest_monthly_earnings), fill = "Highest Monthly Earnings"), alpha = 0.5) +
+  scale_x_log10() +
+  ggtitle("Monthly Earnings") +
+  xlab("Earnings(log)") +
+  ylab("Density") +
+  labs(fill = "Variable") +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12),
+        plot.title = element_text(size = 17,hjust = 0.5),
+        legend.key.size = unit(1.2, "cm"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 13)) 
+  #annotate("text", x = max(p1$data$x), y = 0, label = "Lowest Monthly Earnings", vjust = 0, hjust = 1, color = "lightblue") +
+  #annotate("text", x = max(p1$data$x), y = -0.02, label = "Highest Monthly Earnings", vjust = 0, hjust = 1, color = "darkred")
+
+# 创建年度收入图形
+p2 <- ggplot(data = Youtube_cleaned) +
+  geom_density(aes(x = log(lowest_yearly_earnings), fill = "Lowest Yearly Earnings"), alpha = 0.5) +
+  geom_density(aes(x = log(highest_yearly_earnings), fill = "Highest Yearly Earnings"), alpha = 0.5) +
+  scale_x_log10() +
+  ggtitle("Yearly Earnings") +
+  xlab("Earnings(log)") +
+  ylab("Density") +
+  labs(fill = "Variable") +
+  theme(axis.title = element_text(size = 14),
+        axis.text = element_text(size = 12),
+        plot.title = element_text(size = 17,hjust = 0.5),
+        legend.key.size = unit(1.2, "cm"),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 13)) 
+  #annotate("text", x = max(p2$data$x), y = 0, label = "Lowest Yearly Earnings", vjust = 0, hjust = 1, color = "lightblue") +
+  #annotate("text", x = max(p2$data$x), y = -0.02, label = "Highest Yearly Earnings", vjust = 0, hjust = 1, color = "darkred")
+
+
+library(gridExtra)
+print(p1)
+print(p2)
+
+```
+
+It can be seen that the overall trend is first low and then high. The low part lasts for a long time and then suddenly increases and then decreases.
+Now let's look at the subscriptions.
+For subscriptions, because there are obvious outliers, which reduces the understandability of the image, these outliers are temporarily discarded when analyzing trends.
+```{r,fig.width=16,fig.height=13}
+library(ggplot2)
+
+# 计算数据的IQR
+q1 <- quantile(Youtube_cleaned$subscribers, 0.25)
+q3 <- quantile(Youtube_cleaned$subscribers, 0.75)
+iqr <- q3 - q1
+
+# 计算上限
+upper_limit <- q3 + 1.5 * iqr
+
+# 使用筛选限制数据
+filtered_data <- Youtube_cleaned[Youtube_cleaned$subscribers <= upper_limit, ]
+
+# 绘制直方图
+ggplot(filtered_data, aes(x = subscribers)) +
+  geom_histogram(aes(y=..density..),color= "white") + geom_density(color="darkred",size = 1.5)+
+  labs(title= "Subscribtion Trend",x = "Subscribers") +
+  theme(axis.title = element_text(size = 14,colour = "darkred"),
+        axis.text = element_text(size = 12),
+        plot.title = element_text(size = 17,hjust = 0.5))
+
+
+```
+趋势总体先升后降
+Now let's peak out the relationship between channel type and video views
+```{r,fig.width=15,fig.height=20}
+ggplot(Youtube_cleaned, aes(x = channel_type, y = video_views, fill = channel_type)) +
+  geom_violin() +
+  geom_boxplot(width = 0.2)
+
+```
+分析趋势
+
+
+
+
+
+
+
+# Reference
+@Online{Elgiriyewithana2023,
+  author = {Nidula Elgiriyewithana},
+  title = {Global YouTube Statistics 2023},
+  year = {2023},
+  month = {Aug},
+  url = {https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023},
+  note = {Accessed: yyyy-mm-dd} % replace with the actual access date
+}
+
+
+@Manual{Wickham2016,
+  title = {ggplot2: Elegant Graphics for Data Analysis},
+  author = {Hadley Wickham},
+  year = {2016},
+  publisher = {Springer-Verlag New York},
+  note = {ISBN 978-3-319-24277-4},
+  url = {https://ggplot2.tidyverse.org},
+}
+
+@Manual{Wickham2021,
+  title = {dplyr: A Grammar of Data Manipulation},
+  author = {Hadley Wickham and Romain François and Lionel Henry and Kirill Müller},
+  year = {2021},
+  note = {R package version 1.0.7},
+  url = {https://dplyr.tidyverse.org},
+}
+
+
+@Article{Friendly2002,
+  author = {Michael Friendly},
+  title = {Corrgrams: Exploratory displays for correlation matrices},
+  journal = {The American Statistician},
+  year = {2002},
+  volume = {56},
+  number = {4},
+  pages = {316–324},
+}
+
+@Manual{McNamara2021,
+  title = {skimr: Compact and Flexible Summaries of Data},
+  author = {Amelia McNamara and Hao Zhu and Eduardo Arino de la Rubia and Shannon Ellis and Julia Lowndes and Michael Quinn},
+  year = {2021},
+  note = {R package version 2.1.3},
+  url = {https://cran.r-project.org/web/packages/skimr/},
+}
+
+
+@Book{Healy2018,
+  author = {Kieran Healy},
+  title = {Data Visualization: A Practical Introduction},
+  publisher = {Princeton University Press},
+  year = {2018},
+}
+
+
+
+
+
+
+
+1.Introduction
+2.Setup
+3.Data Preparation
+4.Classification
+4.1 Target Variable
+4.2 Feature Variables
+4.3 Test and Training Sets
+4.4 Null model
+4.5 Single Variable Model
+4.6 Model Evaluation
+4.7 Naive Bayes
+4.8 Logistic Regression
+4.9 Comparison
+
+5 Clustering
+ - 5.1 Hierarchical Clustering
+5.2 Optimal Number of Clusters
+5.3 Validating Clusters
+5.4 Exploring Clusters
+5.4.1 Job Locations
+5.4.2 Salary
+5.4.3 Rating
+
