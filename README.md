@@ -12,8 +12,9 @@
    - 3.2 特征选择： 描述如何基于EDA的结果选择模型的特征变量。
    
 4. 建模
-   - 4.1 分类模型： 说明选择的分类模型和原因。描述模型的训练和评估过程。
-   - 4.2 聚类模型： 说明选择的聚类模型和原因。描述模型的训练和评估过程。
+   - 4.1 Null model 和single variable model（Transforming the categorical variables into numerical for single-variate model selection）
+   - 4.2 分类模型： 说明选择的分类模型和原因。描述模型的训练和评估过程。
+   - 4.3 聚类模型： 说明选择的聚类模型和原因。描述模型的训练和评估过程。
 
 5. 模型评估
    - 5.1 分类模型评估：使用混淆矩阵、ROC曲线等方法评估分类模型的性能。
