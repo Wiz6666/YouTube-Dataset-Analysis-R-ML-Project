@@ -65,8 +65,8 @@
 
 To obtain marks in the HD range (80%-100%), you should aim at having the following elements in your project:
 
-Well demonstrated exceptional understandings of the principles for model comparison and selection (NOTE: simply building a few more models will not automatically warrant marks in the HD range).
-Thorough and effective treatment of data to improve model performance, e.g., imbalanced dataset treatment.
-Exceptional data provenance for reproducible data science.
-Exceptional understanding of feature variable treatment and selection.
-Appropriate use of short text descriptions in diagrams (e.g., annotations).
+- Well demonstrated exceptional understandings of the principles for model comparison and selection (NOTE: simply building a few more models will not automatically warrant marks in the HD range).
+- Thorough and effective treatment of data to improve model performance, e.g., imbalanced dataset treatment.
+- Exceptional data provenance for reproducible data science.
+- Exceptional understanding of feature variable treatment and selection.
+- Appropriate use of short text descriptions in diagrams (e.g., annotations).
