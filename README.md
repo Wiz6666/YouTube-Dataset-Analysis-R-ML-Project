@@ -1,6 +1,7 @@
 - 如何开始project2 https://csse-uwa-1.gitbook.io/cits4009-computational-data-analysis/week-10-single-variable-models-and-naive-bayes-model/week-10-project-2-classification
 - 还有wei给的ppt instruction
-作业框架（26号下午4点30更新-Wiz）
+
+- 作业框架（26号下午4点30更新-Wiz）
 1. 引言
    - 1.1 项目背景和目的： 简要介绍项目的背景、目的和重要性。如果是团队项目，简要描述团队成员和各自的贡献。
    - 1.2 数据来源和特征： 描述数据的来源和主要特征。解释为什么选择这个数据集。
