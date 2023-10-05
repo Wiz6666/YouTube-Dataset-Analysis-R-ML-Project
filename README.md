@@ -1,6 +1,24 @@
 - 如何开始project2 https://csse-uwa-1.gitbook.io/cits4009-computational-data-analysis/week-10-single-variable-models-and-naive-bayes-model/week-10-project-2-classification
 - 还有wei给的ppt instruction
 
+- 老师给的大框架：
+1. Data Preparation 
+   - Data cleaning
+   - Data transformation
+   - Training and Testing dataset (?)
+2. Classification (Week 8, 9 and 10 slides)
+   - Dependent variable and independent variables
+   - Attributes selection
+   - Null module
+   - 2 X classifier techniques
+   - Results and Evaluation
+3. Clustering (Week 11 slides)
+   - 1 clustering technique
+4. Shiny APP
+   - Present your findings to audiences.
+
+
+
 - 作业框架（26号下午4点30更新-Wiz）
 1. 引言
    - 1.1 项目背景和目的： 简要介绍项目的背景、目的和重要性。如果是团队项目，简要描述团队成员和各自的贡献。
