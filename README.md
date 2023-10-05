@@ -5,7 +5,7 @@
 1. Data Preparation 
    - Data cleaning
    - Data transformation
-   - Training and Testing dataset (?)
+   - Training and Testing dataset 
 2. Classification (Week 8, 9 and 10 slides)
    - Dependent variable and independent variables
    - Attributes selection
