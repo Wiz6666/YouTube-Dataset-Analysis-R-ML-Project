@@ -329,61 +329,16 @@ raw_data_unique <- unique(raw_data)
 raw_data <- raw_data_unique
 rm(raw_data_unique)
 ```
-
-
-### 3.1.5 Change data type 
-  Change data type from character to factor for 'category', 'country', 'channel type'
-  Change some categorical variable to factors to prepare for Classification
-将部分文本列调整为factor，为Classification做准备
-```{r Factor type}
-factor_columns <- c("category", "country","country_abbr", "channel_type")
-#Use mutate adjust factor_columns, change then to factor type
-raw_data <- raw_data %>%
-  mutate(across(all_of(factor_columns), as.factor))
-rm(factor_columns)
-```
-
-
-### 3.1.6 Add new column which might be used in the future.
-3.6.1 Add full time column
-添加时间完整的列
-```{r full time}
-# First, ensure that the 'created_date' column is in integer format
-raw_data$created_date <- as.integer(as.character(raw_data$created_date))
-
-# Define a vector of month names
-month_names <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
-
-# Create a vector of two-digit month numbers using sprintf
-month_numbers <- sprintf("%02d", 1:12)
-
-# Create a mapping between month names and month numbers
-month_mapping <- setNames(month_numbers, month_names)
-
-# Update the 'full_date' column by combining year, month, and day
-raw_data$full_date <- as.Date(paste(raw_data$created_year, 
-                                   raw_data$created_month %>% match(month_names) %>% month_mapping[.],
-                                   sprintf("%02d", raw_data$created_date), 
-                                   sep = "-"), 
-                             format = "%Y-%m-%d")
-rm(month_mapping,month_names,month_numbers)
-```
-
-
-### 3.1.7 Handle outliers
-
-#### 3.1.7.1 设置变量
-
-先设置好 numeric 变量；category变量
+### 3.1.5 Handle outliers
+#### 3.1.5.1 classify variables
+Change the variables into numerical and categorical according to the data type.
 ```{r}
-#筛选为category和numeric列
 numeric_vars <- raw_data[sapply(raw_data,is.numeric)]
 categorical_vars <- raw_data[sapply(raw_data,function(x) class(x) %in% c('factor','character'))]
 numeric_vars_name <- names(numeric_vars)
 categorical_vars_name <- names(categorical_vars)
 ```
-
-#### 3.1.7.2 Identify outliers
+#### 3.1.5.2 Identify outliers
 Create a function to identify outliers for all variables in the dataset
 ```{r Outliers detection}
 # Define a function to detect outliers in the dataset
@@ -417,21 +372,7 @@ find_outliers <- detect_outliers(raw_data[numeric_vars_name])
 print(find_outliers)
 rm(find_outliers)
 ```
-
-  In consideration of stakeholders and decision-makers who might be reviewing this report, it's essential to provide a clear visual representation of data discrepancies. Outliers can significantly impact the results of data analyses and predictive modeling. By visually inspecting these outliers using a boxplot, we ensure a better understanding of the data's distribution and its potential implications.
-```{r Outliers boxplots,fig.width=16,fig.height=22}
-long_data <- reshape2::melt(raw_data[numeric_vars_name], id.vars = NULL)
-
-# Create a boxplot visualization for the data in the long format.
-ggplot(long_data, aes(x = variable, y = value)) +
-  geom_boxplot() +
-  labs(x = NULL, y = NULL) +
-  facet_wrap(~ variable, scales = "free") +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-rm(long_data)
-```
-
-#### 3.1.7.3 Winsorize outliers
+#### 3.1.5.3 Winsorize outliers
   To deal with extreme values in the dataset, we used the method of Winsorizing (shrinking the tails), which sets values greater than the 95th percentile in the dataset to the 95th percentile value. This method has unique advantages over other methods of dealing with outliers, such as truncation or deletion. 
   First, it preserves much of the original information of the data. Second, truncation reduces the potential adverse effects of extreme values or outliers on the model, thus improving the stability and predictive accuracy of the model. 
   In addition, some studies have also shown that the results of statistical hypothesis validation and model fit of the model can be effectively improved by appropriate outlier treatment [@Dixon1960].
@@ -456,7 +397,7 @@ raw_data <- truncate_tail(raw_data, numeric_vars_name, percentile = 95)
 
 ```
 
-
+Secondly,summarize how much outliers in each variable
 对每一个列做总结有多少个离异值
 ```{r}
 # 计算z分数并检测离群值的函数
@@ -473,32 +414,91 @@ outliers_count_after_truncate <- detect_outliers_zscore(raw_data, numeric_vars_n
 print(outliers_count_after_truncate)
 
 ```
-
-
-
+Finally,we can find that the influence of outliers is slight deduced, but there are still existing some outliers, if we change all the outliers, it will over-changed and affect the modeling.
 从结果发现缺失值确实有所减缓，但是我们没有办法完全处理所有的缺失值，这也会过度修改数据。到此数据已经清洁完成并且准备开始Classification
-```{r Backup}
+
+### 3.1.6 Change data type 
+  Change data type from character to factor for 'category', 'country', 'channel type'
+  Change some categorical variable to factors to prepare for Classification
+将部分文本列调整为factor，为Classification做准备
+```{r Factor type}
+factor_columns <- c("category", "country","country_abbr", "channel_type")
+#Use mutate adjust factor_columns, change then to factor type
+raw_data <- raw_data %>%
+  mutate(across(all_of(factor_columns), as.factor))
+rm(factor_columns)
+```
+
+
+### 3.1.7 Add new column which might be used in the future.
+3.6.1 Add full time column
+添加时间完整的列
+```{r full time}
+# First, ensure that the 'created_date' column is in integer format
+raw_data$created_date <- as.integer(as.character(raw_data$created_date))
+
+# Define a vector of month names
+month_names <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# Create a vector of two-digit month numbers using sprintf
+month_numbers <- sprintf("%02d", 1:12)
+
+# Create a mapping between month names and month numbers
+month_mapping <- setNames(month_numbers, month_names)
+
+# Update the 'full_date' column by combining year, month, and day
+raw_data$full_date <- as.Date(paste(raw_data$created_year, 
+                                   raw_data$created_month %>% match(month_names) %>% month_mapping[.],
+                                   sprintf("%02d", raw_data$created_date), 
+                                   sep = "-"), 
+                             format = "%Y-%m-%d")
+rm(month_mapping,month_names,month_numbers)
+```
+###3.1.8 Backup the processed data 
+Backup the raw_data into another name youtube_data
+```{r Backup Data}
 youtube_data <- raw_data
 ```
 
-### 3.2 数据转换
-
-
-问题：博主的收入水平属于什么档次
-特征：订阅者数、视频观看数、上传数、创建年份、视频观看增长率并且结合年收入和月收入进行判断，还有可以加上channel type(根据type进行纵向比较)。
-类别：高收入  vs. 低收入
-
-
-删除掉除了需要的列以外的数据。
-```{r}
+## 3.2 Data Transformation
+### 3.2.1 Delete some unique columns
+According to the instructions of project 2.Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
+```{r Delete Unique Colunmns}
+unique_col <-  names(youtube_data) %in% c("rank","youtuber","title","video_views_rank","country_rank","channel_type_rank")
+youtube_data <- youtube_data[!unique_col]
+```
+### 3.2.2 Handle earnings
+Because our classification want to analyse the earnings variable, we need to handle all things related to earnings.
+Firstly, use averaging to handle highest and lowest earnings
+```{r Average Earnings}
 youtube_data$monthly_earning <-( youtube_data$monthly_earning_high+youtube_data$monthly_earnings_low)/2
 
 youtube_data$yearly_earning <-( youtube_data$yearly_earning_low+youtube_data$yearly_earning_high)/2
 
 ```
+Observation found that among the overall monthly income and annual income, there are rows where the monthly income is much greater than the annual income. The reason for this problem is that some rows with the lowest monthly income have na values, which turned into average values during previous processing, resulting in this unreasonable situation.
+Create a function to identify all these unreasonable rows
+```{r Detect Unreasonable Rows}
+detect_unusual_rows <- function(data) {
+  unusual_rows <- data[data$monthly_earning > data$yearly_earning, c("monthly_earning", "yearly_earning","monthly_earnings_low","monthly_earning_high","yearly_earning_low","yearly_earning_high")]
+  print(unusual_rows)
+  cat("The number of unreasonable rows are", nrow(unusual_rows), "rows\n")
+}
 
+detect_unusual_rows(youtube_data)
 
-```{r}
+```
+It can be found that these unreasonable rows account for less than 5% of all rows.To ensure the data integrity of classification,these rows can be deleted.
+```{r Delete Unreasonable Rows}
+youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly_earning, ]
+```
+### 3.2.3 Classification Question
+In this project, we want to build model to predict which income level a youtuber belongs to.
+According to the definition of low income and high income in New World Bank data. According to the latest data as of July 1, 2020, those with an annual income greater than US$4,046 are considered high-income, and others can be considered low-income groups.
+问题：博主的收入水平属于什么档次
+特征：订阅者数、视频观看数、上传数、创建年份、视频观看增长率并且结合年收入和月收入进行判断，还有可以加上channel type(根据type进行纵向比较)。proportion
+类别：高收入  vs. 低收入
+```{r Check the high income proportion}
 calculate_high_earning <- function(col, threshold) {
   # 使用向量化的比较来得到逻辑向量
   high_logical <- col >= threshold
@@ -517,7 +517,12 @@ calculate_high_earning <- function(col, threshold) {
               low_earning_percentage = low_earning_percentage))
 }
 earnings_percentages <- calculate_high_earning(youtube_data$monthly_earning, 12535)
-print(earnings_percentages$high_earning_percentage)
+cat("There are",earnings_percentages$high_earning_percentage * 100,"% of youtuber belongs to high income level")
+```
+### 3.2.4 Split Data
+According to the different income levels, we need to split the youtube_data into training data and testing data
+```{r}
+
 ```
 
 ```[r]
