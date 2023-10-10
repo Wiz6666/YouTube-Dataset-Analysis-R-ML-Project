@@ -578,14 +578,6 @@ youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly
 
 
 
-
-
-
-
-
-
-
-
 ### 3.2.2 Remove unrelevant columns
   According to the instructions of project 2.Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
 ```{r Remove unrelevant colunmns}
@@ -618,16 +610,8 @@ cat("There are", earnings_percentages$high_earning_percentage * 100, "% of YouTu
 
 ```
 
-### 3.2.2 Handle earnings columns
-Because our classification want to analyse the earnings variable, we need to handle all things related to earnings.
-Firstly, use averaging to handle highest and lowest earnings
 
-
-
-
-
-
-### 3.2.4 Split Data
+### 3.2.43 Split Data
 According to the different income levels, we need to split the youtube_data into training data and testing data
 ```{r}
 
