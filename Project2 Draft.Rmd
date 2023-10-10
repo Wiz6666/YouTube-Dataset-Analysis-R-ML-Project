@@ -423,13 +423,12 @@ outliers_count_after_truncate <- detect_outliers_zscore(raw_data, numeric_vars_n
 print(outliers_count_after_truncate)
 rm(outliers_count_after_truncate)
 ```
-  Finally,we can find that the influence of outliers is slight deduced, but there are still existing some outliers, if we change all the outliers, it will over-changed and affect the modeling.
-从结果发现缺失值确实有所减缓，但是我们没有办法完全处理所有的缺失值，这也会过度修改数据。到此数据已经清洁完成并且准备开始Classification
+  Ultimately, we observe a reduction in the impact of outliers, but it's impractical to address all of them. Overcorrecting could potentially distort the data. With the cleaning phase now complete, we're ready to transition to the classification stage.
+
 
 ### 3.1.6 Change data type 
   Change data type from character to factor for 'category', 'country', 'channel type'
   Change some categorical variable to factors to prepare for Classification
-将部分文本列调整为factor，为Classification做准备
 ```{r Factor type}
 factor_columns <- c("category", "country","country_abbr", "channel_type")
 #Use mutate adjust factor_columns, change then to factor type
@@ -437,6 +436,8 @@ raw_data <- raw_data %>%
   mutate(across(all_of(factor_columns), as.factor))
 rm(factor_columns)
 ```
+
+
 ###3.1.7 Backup the processed data 
 Backup the raw_data into another name youtube_data
 ```{r Backup Data}
