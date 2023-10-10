@@ -14,16 +14,22 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
-收入级别分类：
 
-问题：博主的收入水平属于什么档次
-特征：订阅者数、视频观看数、上传数、创建年份、视频观看增长率并且结合年收入和月收入进行判断，还有可以加上channel type(根据type进行纵向比较)。
-类别：高收入  vs. 低收入
+
+
+
 
 
 # Part1 - Introduction
+
+
+
+
 ## 1.1 - Project Background and Purpose
   In this project, our objective is to illustrate the process of modeling by using R machine learning functions. We aim to understand and apply various stages of data science including data preparation, model building, and model evaluation. We have choosen the YouTube dataset which is shared by uni coordinator. We also use the same dataset in our Project 1. The specific contributions of each member will be separated 50-50 fairly.
+  
+  
+  
   
 ## 1.2 Data Source and Characteristics
   The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023". (https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023)
@@ -33,14 +39,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
+
+
+
 # Part2 - Setup
 
-## 2.1 Load required R packages
 
+
+
+
+## 2.1 Load required R packages
   We load 'ggplot2' package [@Wickham2016] for making static graphics and 'dplyr' package [@Wickham2021] for data manipulation.
   We employ scatterplot matrices and correlation heatmaps for exploratory data analysis to understand the pairwise relationships between variables [@Friendly2002]...
   We use the skimr package to obtain more comprehensive descriptive statistics of the numeric variables in the dataset [@McNamara et al.2021]...
-  
 ```{r Library, echo=TRUE, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(gridExtra)
@@ -64,8 +75,10 @@ library(scales)
 
 ```
 
-## 2.2 Set plot theme 
 
+
+
+## 2.2 Set plot theme 
   The theme is set up to enhance the readability and interpretability of the graphs, following the best practices in data visualization [@Healy2018].
 ```{r Theme}
 project_theme <- theme(
@@ -82,12 +95,18 @@ project_theme <- theme(
 )
 ```
 
+
+
+
 ## 2.3 Load the main data
   In this part, we will load the main dataset, store the path in 'Data_path'
 ```{r readfile, warning=FALSE}
 data_path <- 'Global YouTube Statistics.csv'
 raw_data <- read.csv(data_path,encoding = "UTF-8")
 ```
+
+
+
 
 ## 2.4 Dataset initial overview
   Before starting in-depth analysis and modeling, it is crucial to perform an initial overview of the dataset. By using functions such as summary, str, etc., we can gain an overall understanding of the data, including data types, data distribution, missing values and possible outliers.
@@ -159,11 +178,16 @@ head(raw_data,n=100)
 
 
 
-# Part3 - Data Preparation and Preprocessing
+
+
+
+# Part3 - Data Cleaning and Preparation
+
 
 
 
 ## 3.1 Data Cleaning
+
 
 ### 3.1.1 Check column names and make adjustments
 
@@ -202,6 +226,7 @@ raw_data <- raw_data %>%
 print(colnames(raw_data))
 ```
   
+  
 ### 3.1.2 Inspect & Adjust data types
 Use sapply function to check data types, adjust wrong data typs.
 ```{r Data type, results='hide', echo=FALSE,warning=FALSE}
@@ -214,9 +239,9 @@ rm(data_types, data_sample)
 
   From the standard output first, we know that we need to handle the missing values; 'created_month' should change from char type to numeric type this is useful for following analysis; 'category','country','channel_type','abbreviation' shoule be factor type which is better for following analysis;handle the outliers according to the skimmr result.
   
+  
 ### 3.1.3 Handle Missing value
-  To address missing values, we have observed three types of characters representing missing data: 0, "NaN," and "nan." Our objective is to convert these representations into NA and subsequently count the number of NA values in each row. 
-先把特殊值（0 ；NaN；nan）转换NA，紧接着计算每一列的NA数量。我们主观认为0是指NA的哨兵值。
+  We've identified three representations for missing data in our dataset: "0", "NaN", and "nan". Our goal is to standardize these by converting them to NA. Following this conversion, we aim to tally the number of NA values in each column. It's our assumption that "0" serves as a sentinel value indicating missing data. 
 ```{r Kill 0&NA and delete NA}
 #Change 0 or 'nan' or 'NaN' to NA value
 #Char columns
@@ -226,7 +251,6 @@ raw_data <- raw_data |>
   mutate(across(where(is.numeric), ~ifelse(is.nan(.), NA, .)))
 ```
 
-使用函数计算每一列的NA值
   Use function to calculate how many missing values in each column, handle them.
 ```{r col_NA calculator}
 # Calculate missing value number
@@ -249,47 +273,30 @@ data.frame(Column = names(nacounts[hasNA]),
 rm(col,hasNA,nacounts,napercents)
 
 ```
-  Based on the results, it's evident that many columns contain a significant number of missing values. However, our dataset only consists of 995 rows. If we were to delete these missing values extensively, we might end up with an insufficient amount of data for subsequent modeling. Therefore, we've devised different approaches to handle different types of variables.
+  Our dataset examination reveals pervasive missing data across multiple columns. Given that our dataset comprises only 995 rows, a sweeping removal of missing values could severely curtail the dataset's utility for subsequent modeling. In light of this, we've devised tailored strategies for addressing different variable types.
 
-  Before addressing the missing values, it's essential to identify the variables that we won't be processing and provide an explanation.
-Firstly, we've chosen not to process the 'abbreviation' column. Despite being able to replace its missing values with 'unknown,' the sheer quantity of missing values (122 in total) makes it impractical to proceed with this column.
-  Additionally, we've decided not to handle the 'latitude' and 'longitude' columns. These columns lack provided geographical information, and the proportion of missing values exceeds 10%, which is relatively high. Consequently, these two variables aren't suitable for the upcoming modeling process.
-  Lastly, we won't be dealing with the 'rank,' 'subscribers,' 'Title,' and 'Youtuber' columns. This decision is based on the fact that these columns do not contain any missing values.
-  Now, we need to decide on the methods to use for different columns. First, let's consider the 'video views' column, which has few missing values. We can choose between deletion or imputation with the median. However, since we want to maintain an adequate number of rows for modeling, we opt for replacing the missing values with the median.As for the 'Earnings' variable, it follows a skewed distribution. Therefore, we plan to use median imputation.Regarding the time-related variables, they cannot be inferred from other variables, and they are not continuous time series data, making ARIMA modeling inapplicable. Fortunately, there are only 5 rows with missing values, accounting for just 0.5% of the entire dataset. Our chosen approach is to delete rows with missing time values and not impute them.
+Before delving into the strategies for managing missing values, it's crucial to outline which variables we have decided not to process and provide the rationale behind these choices:
+  1.Abbreviation: Although it's feasible to replace its missing entries with 'Unknown', a total of 122 missing entries renders it impractical for further processing.
+  2.Latitude & Longitude: These columns lack intrinsic geographical data. With missing data exceeding 10% of the total, they are deemed not fit for subsequent modeling tasks.
+  3.Rank, Subscribers, Title & Youtuber: These columns will not be part of our processing pipeline since they manifest no missing values.
 
-  In summary, the numeric variables that require processing are "video_views",
-"uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population", 
-and the categorical variables to be addressed are "category", "country","country_abbr","channel_type".
-
-我们发现很多行是大面积丢失，
-首先，我们只有995 rows的数据，所以我们必须尽力不要删除任何行，否则我们没有足够的数据进行接下来的分析。我们决定插补数据，对于分类变量我们使用Unknown 填补，代表缺失
-
-1. Video Views
-缺失值很少，考虑删除或者中位数插补。但是我们尽量不删除，切数据偏态分布，所以使用中位数填补。
-2.Country & Abbreviation
- 虽然可以使用Unknown 更换缺失值，但是总共缺失122个数值，数据缺失过大不适用于接下来的分析工作
-3. Earnings
-由于是偏态分布的数据，考虑中位数插补
-4.经纬度
-没有可以使用的地理信息，缺失占10%以上，这里考虑无视。不进行到接下来的机器学习分析当中
-5.时间变量
-无法从其他变量推断，不是连续的时间序列数据，无法使用ARIMA模型推断，但是只有5 rows是缺少的，只占了全部数据的0.5%，删除没有时间的行, 不填补时间的缺失值
-6.不处理rank；subscribers；Title;Youtuber没有发现缺失值
-
+Now, let's delve into the specifics of our chosen strategies for different columns:
+  1.Video Views: With a scant presence of missing values, we grappled with options between row deletion or median imputation. Given our preference to retain as many rows as possible and the data's skewed distribution, we've opted for median imputation.
+  2.Country & Abbreviation: The magnitude of missing values (122 in total) poses challenges. Hence, rather than impute, we'll earmark these columns for exclusion from subsequent analyses.
+  3.Earnings: Given its skewed distribution, our chosen strategy leans towards median imputation.
+  4.Latitude & Longitude: These will be excluded from further analysis due to substantial missing values and an absence of auxiliary geographical information to assist imputation.
+  5.Time Variables: These aren't continuous time series, ruling out techniques like ARIMA modeling. Given the paucity of missing data (only 5 rows), which equates to a mere 0.5% of the dataset, we've resolved to delete rows with missing time entries, without attempting imputation.
           
-需要处理的数字类型列：
-c("video_views",
-"uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population")	
+The numeric columns slated for processing are as follows:
+  c("video_views", "uploads", "video_views_rank", "country_rank", "channel_type_rank", "video_views_last_30_days", "monthly_earnings_low", "monthly_earning_high", "yearly_earning_low", "yearly_earning_high", "subs_last_30_days", "tertiary_edu_enrollment", "population", "unemployment_rate", "urban_population").
 
-所有文本类型列：
-c("category", "country","country_abbr","channel_type")
+The categorical columns in our crosshairs are:
+  c("category", "country", "country_abbr", "channel_type").
 
+  Our immediate focus will be on the aforementioned numeric columns. Leaning on the outcomes of our skewness analysis, which indicated a predominantly right-skewed data distribution, we've favored median imputation over mean imputation. This is predicated on the fact that the median, unlike the mean, won't perturb the right-skewed nature of the data.
 
-我们首先处理以上数字类型列。使用中位数填充缺失值
-  First, we are going to handle numeric variable, using medium to replace the NA
-  Base on the result of skewness test, most of data is right skewed, so we should use medium which is better than using mean value, because mean value would change the right skewed structure.
-Here, I change the columns where more than 10% of data is NA.
-```{r Fill with medium}
+In summary, our overarching strategy centers on the preservation of data integrity, and our chosen imputation methods are reflective of each column's inherent properties and data distribution.
+```{r Handle missing value (numeric cols)}
 change_to_median_cols <- c("video_views",
 "uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population")
 for (col in change_to_median_cols) {
@@ -299,10 +306,8 @@ for (col in change_to_median_cols) {
 rm(col,median_val,change_to_median_cols)
 ```
 
-
-这里将需要处理的文本列使用“Unknown”转换NA值
-  Secondly, we change the NAs in cateogrical variables into "Unknown"
-```{r Unknown changer}
+  Change the NAs in character variables into "Unknown"
+```{r Handle missing value (character cols)}
 character_columns <- c("category", "country","country_abbr","channel_type")
   
 for (col in character_columns) {
@@ -312,14 +317,12 @@ rm(col,character_columns)
 ```
 
   Delete all the missing rows (5 rows) in the time column. Since there are only 5 rows, it does not affect the subsequent analysis. At the same time, delete the rows with the channel creation year less than 2005, because the YouTube company was created in 2005.
-删除所有时间列是缺失的行（5行），由于只有5行不影响接下来的分析，同时删除频道创建年份小于2005的行，因为youtube公司的创建时间是2005年.
-```{r}
+```{r Delete rows}
 raw_data <- raw_data %>%
   filter(!is.na(created_year) & !is.na(created_month) & !is.na(created_date) & created_year >= 2005)
 ```
 
   Overall, only 6 rows of data were deleted, which does not affect the subsequent analysis because it only accounts for 0.6% of the data.
-总共删除了6行数据，并不影响接下来的分析，只占了数据的0.6%
 
 
 ### 3.1.4 Handle repeating lines
@@ -329,17 +332,21 @@ raw_data_unique <- unique(raw_data)
 raw_data <- raw_data_unique
 rm(raw_data_unique)
 ```
+
+
 ### 3.1.5 Handle outliers
+
 #### 3.1.5.1 classify variables
-Change the variables into numerical and categorical according to the data type.
-```{r}
+  Change the variables into numerical and categorical according to the data type.
+```{r classify variables}
 numeric_vars <- raw_data[sapply(raw_data,is.numeric)]
 categorical_vars <- raw_data[sapply(raw_data,function(x) class(x) %in% c('factor','character'))]
 numeric_vars_name <- names(numeric_vars)
 categorical_vars_name <- names(categorical_vars)
 ```
+
 #### 3.1.5.2 Identify outliers
-Create a function to identify outliers for all variables in the dataset
+  Create a function to identify outliers for all variables in the dataset
 ```{r Outliers detection}
 # Define a function to detect outliers in the dataset
 detect_outliers <- function(data, method = "zscore", threshold = 3) {
@@ -372,6 +379,7 @@ find_outliers <- detect_outliers(raw_data[numeric_vars_name])
 print(find_outliers)
 rm(find_outliers)
 ```
+
 #### 3.1.5.3 Winsorize outliers
   To deal with extreme values in the dataset, we used the method of Winsorizing (shrinking the tails), which sets values greater than the 95th percentile in the dataset to the 95th percentile value. This method has unique advantages over other methods of dealing with outliers, such as truncation or deletion. 
   First, it preserves much of the original information of the data. Second, truncation reduces the potential adverse effects of extreme values or outliers on the model, thus improving the stability and predictive accuracy of the model. 
@@ -397,24 +405,25 @@ raw_data <- truncate_tail(raw_data, numeric_vars_name, percentile = 95)
 
 ```
 
-Secondly,summarize how much outliers in each variable
-对每一个列做总结有多少个离异值
-```{r}
-# 计算z分数并检测离群值的函数
+  Secondly,summarize how much outliers in each variable
+```{r Outliers Count}
+# Function to compute z-scores and detect outliers based on a specified threshold
 detect_outliers_zscore <- function(data, column_names, threshold = 3) {
   outliers_count <- sapply(column_names, function(col_name) {
+    # Calculate z-scores for each specified column
     z_scores <- (data[[col_name]] - mean(data[[col_name]], na.rm = TRUE)) / sd(data[[col_name]], na.rm = TRUE)
+    # Count the number of absolute z-scores that exceed the provided threshold
     sum(abs(z_scores) > threshold, na.rm = TRUE)
   })
   return(outliers_count)
 }
 
-# 使用缩尾处理后的数据检测离群值
+# Detect outliers in the data after truncation using the function above
 outliers_count_after_truncate <- detect_outliers_zscore(raw_data, numeric_vars_name)
 print(outliers_count_after_truncate)
-
+rm(outliers_count_after_truncate)
 ```
-Finally,we can find that the influence of outliers is slight deduced, but there are still existing some outliers, if we change all the outliers, it will over-changed and affect the modeling.
+  Finally,we can find that the influence of outliers is slight deduced, but there are still existing some outliers, if we change all the outliers, it will over-changed and affect the modeling.
 从结果发现缺失值确实有所减缓，但是我们没有办法完全处理所有的缺失值，这也会过度修改数据。到此数据已经清洁完成并且准备开始Classification
 
 ### 3.1.6 Change data type 
@@ -428,14 +437,26 @@ raw_data <- raw_data %>%
   mutate(across(all_of(factor_columns), as.factor))
 rm(factor_columns)
 ```
+###3.1.7 Backup the processed data 
+Backup the raw_data into another name youtube_data
+```{r Backup Data}
+youtube_data <- raw_data
+```
 
 
-### 3.1.7 Add new column which might be used in the future.
-3.6.1 Add full time column
-添加时间完整的列
+### 3.1.8 Add new columns
+  Add new columns which might be used in the future.
+
+#### 3.1.8.1 Full time column
 ```{r full time}
 # First, ensure that the 'created_date' column is in integer format
-raw_data$created_date <- as.integer(as.character(raw_data$created_date))
+# Assuming the data doesn't contain any decimal parts or NA values
+youtube_data$created_date <- as.integer(as.character(raw_data$created_date))
+
+# Check for any non-integer values in 'created_date'
+if (any(!is.finite(youtube_data$created_date))) {
+  stop("The 'created_date' column contains non-integer or NA values.")
+}
 
 # Define a vector of month names
 month_names <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -447,78 +468,164 @@ month_numbers <- sprintf("%02d", 1:12)
 month_mapping <- setNames(month_numbers, month_names)
 
 # Update the 'full_date' column by combining year, month, and day
-raw_data$full_date <- as.Date(paste(raw_data$created_year, 
+youtube_data$full_time <- as.Date(paste(raw_data$created_year, 
                                    raw_data$created_month %>% match(month_names) %>% month_mapping[.],
-                                   sprintf("%02d", raw_data$created_date), 
+                                   sprintf("%02d", youtube_data$created_date), 
                                    sep = "-"), 
                              format = "%Y-%m-%d")
-rm(month_mapping,month_names,month_numbers)
-```
-###3.1.8 Backup the processed data 
-Backup the raw_data into another name youtube_data
-```{r Backup Data}
-youtube_data <- raw_data
+rm(month_mapping, month_names, month_numbers)
 ```
 
-## 3.2 Data Transformation
-### 3.2.1 Delete some unique columns
-According to the instructions of project 2.Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
-```{r Delete Unique Colunmns}
-unique_col <-  names(youtube_data) %in% c("rank","youtuber","title","video_views_rank","country_rank","channel_type_rank")
-youtube_data <- youtube_data[!unique_col]
+#### 3.1.8.2 Subscriber engagement column
+  video_views/subscribers. This can give an idea of how many videos, on average, each subscriber watches, offering a measure of engagement for the channel.
+```{r}
+youtube_data$subs_engagement <- youtube_data$video_views/youtube_data$subscribers
 ```
-### 3.2.2 Handle earnings
-Because our classification want to analyse the earnings variable, we need to handle all things related to earnings.
-Firstly, use averaging to handle highest and lowest earnings
+
+#### 3.1.8.3 Add video upload frequency column
+  uploads/(2023-created_year). This can show how many videos a YouTuber uploads on average each year since they created their channel.
+```{r}
+youtube_data$uploads_frequencey <- youtube_data$uploads/(2023-youtube_data$created_year)
+```
+
+#### 3.1.8.4 Average views per video column
+  video_views/uploads. This can help in understanding the average number of views per video, offering a measure of the content's popularity.
+```{r}
+youtube_data$average_views_per_video <- youtube_data$video_views/youtube_data$uploads
+```
+
+#### 3.1.8.5 Urbanization rate column
+  urban_population/population. This will give a percentage of urbanization in a country.
+```{r}
+youtube_data$urban_rate <- youtube_data$urban_population/youtube_data$population
+```
+
+#### 3.1.8.6 Years of experience column
+  2023 - created_year. The number of years since the channel was created, which might relate to income and popularity.
+```{r}
+youtube_data$age <- 2023-youtube_data$created_year
+```
+
+#### 3.1.8.7 Education population ratio column
+  tertiary_edu_enrollment/population. This gives a ratio of the population that's undergoing higher education in each country
+```{r}
+youtube_data$edu_ratio <- youtube_data$tertiary_edu_enrollment/youtube_data$population
+```
+
+#### 3.1.8.8 Top channel flag column
+  A binary feature based on rank (if channel rank < 1000 then 1, else 0).
+```{r}
+youtube_data$top_channel_flag <- as.numeric(youtube_data$channel_type_rank <1000)
+```
+
+#### 3.1.8.9 Video views increasing rate column
+  video_views_last_30_days/ video_view. This shows the increasing rate about video views.
+```{r video_views_increasing_rate}
+youtube_data$video_views_increasing_rate <- (youtube_data$video_views_last_30_days/youtube_data$video_views)
+```
+
+#### 3.1.8.3 Add average earning columns
+  Average earning for each month and each year.
 ```{r Average Earnings}
 youtube_data$monthly_earning <-( youtube_data$monthly_earning_high+youtube_data$monthly_earnings_low)/2
-
 youtube_data$yearly_earning <-( youtube_data$yearly_earning_low+youtube_data$yearly_earning_high)/2
-
 ```
-Observation found that among the overall monthly income and annual income, there are rows where the monthly income is much greater than the annual income. The reason for this problem is that some rows with the lowest monthly income have na values, which turned into average values during previous processing, resulting in this unreasonable situation.
-Create a function to identify all these unreasonable rows
+
+  Observation found that among the overall monthly income and annual income, there are rows where the monthly income is much greater than the annual income. The reason for this problem is that some rows with the lowest monthly income have na values, which turned into average values during previous processing, resulting in this unreasonable situation.
+  Create a function to identify all these unreasonable rows
 ```{r Detect Unreasonable Rows}
 detect_unusual_rows <- function(data) {
   unusual_rows <- data[data$monthly_earning > data$yearly_earning, c("monthly_earning", "yearly_earning","monthly_earnings_low","monthly_earning_high","yearly_earning_low","yearly_earning_high")]
   print(unusual_rows)
   cat("The number of unreasonable rows are", nrow(unusual_rows), "rows\n")
 }
-
 detect_unusual_rows(youtube_data)
-
 ```
-It can be found that these unreasonable rows account for less than 5% of all rows.To ensure the data integrity of classification,these rows can be deleted.
+  It can be found that these unreasonable rows account for less than 5% of all rows.To ensure the data integrity of classification,these rows can be deleted. According to the discussion with Sirui Liu in Teams, it is acceptable to delete rows less than 5% in total. For now we delete 45 rows(4.6%).
 ```{r Delete Unreasonable Rows}
 youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly_earning, ]
 ```
-### 3.2.3 Classification Question
-In this project, we want to build model to predict which income level a youtuber belongs to.
-According to the definition of low income and high income in New World Bank data. According to the latest data as of July 1, 2020, those with an annual income greater than US$4,046 are considered high-income, and others can be considered low-income groups.
-问题：博主的收入水平属于什么档次
-特征：订阅者数、视频观看数、上传数、创建年份、视频观看增长率并且结合年收入和月收入进行判断，还有可以加上channel type(根据type进行纵向比较)。proportion
-类别：高收入  vs. 低收入
+
+## 3.2 Data Preparation
+
+
+### 3.2.1 Object and features
+
+本次Project，我们希望建立模型预测Youtuber的收入水平属于什么档次
+我们选择使用的特征是："subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate",
+类别是： 高收入 vs 低收入
+
+
+  数据整合:
+    从World Bank或其他公开数据源导入每个国家的GDP per capita数据。
+    将Youtuber数据和GDP per capita数据根据国家字段进行合并。
+
+  标准化Youtuber收入:
+    使用Youtuber的年收入与其所在国家的GDP per capita进行比较。
+    标准化收入=Youtuber年收入GDPpercapita标准化收入=GDPpercapitaYoutuber年收入​
+    这可以给出Youtuber的收入是其国家平均收入的多少倍。
+
+  定义高收入的逻辑:
+    设定一个阈值。例如，如果Youtuber的标准化收入是国家GDP per capita的5倍或更多，则可以认为该Youtuber属于高收入群体。
+    为什么选择5倍？这是一个启发式选择，可以基于数据的初步分析或行业常识进行选择。在初步分析中，您可以观察标准化收入的分布情况，查看哪些Youtuber位于高收入的尾部，从而为阈值选择提供依据。
+
+  验证定义:
+    一旦定义了高收入的逻辑，最好通过一些数据可视化来验证您的选择。例如，可以使用直方图或箱型图来查看标准化收入的分布，并检查高收入和低收入Youtuber的比例。
+
+  调整和优化:
+    根据验证步骤的结果，可能需要调整定义的逻辑。例如，如果您发现太多（或太少）的Youtuber被分类为高收入，您可能需要重新考虑和调整阈值。
+
+
+
+
+
+
+
+
+
+
+
+### 3.2.2 Remove unrelevant columns
+  According to the instructions of project 2.Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
+```{r Remove unrelevant colunmns}
+youtube_data <- youtube_data[c("subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","monthly_earning","yearly_earning")]
+```
+
+Use $12,535 to identify what means high income, and check the percentage of high income in dataset.
 ```{r Check the high income proportion}
+# Define a function to calculate the proportion of high earners
 calculate_high_earning <- function(col, threshold) {
-  # 使用向量化的比较来得到逻辑向量
-  high_logical <- col >= threshold
-  low_logical <- col < threshold
-  
-  # 使用sum函数计算TRUE的数量，因为在R中TRUE被认为是1，FALSE被认为是0
-  high_count <- sum(high_logical)
-  low_count <- sum(low_logical)
-  
-  # 计算百分比
-  high_earning_percentage <- high_count / length(col)
-  low_earning_percentage <- low_count / length(col)
-  
-  # 返回一个命名列表
+  # Using vectorized comparison to obtain a logical vector for high and low earners
+  high_logical <- col >= threshold  
+  low_logical <- col < threshold     
+  # Calculate the count of high and low earners using the sum function.
+  # This works because in R, TRUE is treated as 1 and FALSE as 0.
+  high_count <- sum(high_logical)    
+  low_count <- sum(low_logical)      
+  # Calculate the percentage of high and low earners
+  high_earning_percentage <- high_count / length(col)  
+  low_earning_percentage <- low_count / length(col)    
+  # Return a named list with the calculated percentages
   return(list(high_earning_percentage = high_earning_percentage, 
               low_earning_percentage = low_earning_percentage))
 }
+
+
+# Call the function on the 'monthly_earning' column with a defined threshold of 12535
 earnings_percentages <- calculate_high_earning(youtube_data$monthly_earning, 12535)
-cat("There are",earnings_percentages$high_earning_percentage * 100,"% of youtuber belongs to high income level")
+cat("There are", earnings_percentages$high_earning_percentage * 100, "% of YouTubers that belong to the high-income level.")
+
 ```
+
+### 3.2.2 Handle earnings columns
+Because our classification want to analyse the earnings variable, we need to handle all things related to earnings.
+Firstly, use averaging to handle highest and lowest earnings
+
+
+
+
+
+
 ### 3.2.4 Split Data
 According to the different income levels, we need to split the youtube_data into training data and testing data
 ```{r}
