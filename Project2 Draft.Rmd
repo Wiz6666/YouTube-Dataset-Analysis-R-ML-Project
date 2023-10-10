@@ -387,7 +387,7 @@ rm(find_outliers)
   
 First,identify which variables are numerical or categorical.并且设置好Category列的变量和Numeric列的变量
 
-```{r, Winsorize Outliers}
+```{r Winsorize outliers}
 # Function to truncate values in specified columns that exceed a given percentile.
 truncate_tail <- function(data, column_names, percentile = 95) {
   
@@ -479,43 +479,43 @@ rm(month_mapping, month_names, month_numbers)
 
 #### 3.1.8.2 Subscriber engagement column
   video_views/subscribers. This can give an idea of how many videos, on average, each subscriber watches, offering a measure of engagement for the channel.
-```{r}
+```{r Subscriber engagement}
 youtube_data$subs_engagement <- youtube_data$video_views/youtube_data$subscribers
 ```
 
 #### 3.1.8.3 Add video upload frequency column
   uploads/(2023-created_year). This can show how many videos a YouTuber uploads on average each year since they created their channel.
-```{r}
+```{r video upload frequency}
 youtube_data$uploads_frequencey <- youtube_data$uploads/(2023-youtube_data$created_year)
 ```
 
 #### 3.1.8.4 Average views per video column
   video_views/uploads. This can help in understanding the average number of views per video, offering a measure of the content's popularity.
-```{r}
+```{r Average views per video}
 youtube_data$average_views_per_video <- youtube_data$video_views/youtube_data$uploads
 ```
 
 #### 3.1.8.5 Urbanization rate column
   urban_population/population. This will give a percentage of urbanization in a country.
-```{r}
+```{r  Urbanization rate}
 youtube_data$urban_rate <- youtube_data$urban_population/youtube_data$population
 ```
 
 #### 3.1.8.6 Years of experience column
   2023 - created_year. The number of years since the channel was created, which might relate to income and popularity.
-```{r}
+```{r Years of experience}
 youtube_data$age <- 2023-youtube_data$created_year
 ```
 
 #### 3.1.8.7 Education population ratio column
   tertiary_edu_enrollment/population. This gives a ratio of the population that's undergoing higher education in each country
-```{r}
+```{r Education population ratio}
 youtube_data$edu_ratio <- youtube_data$tertiary_edu_enrollment/youtube_data$population
 ```
 
 #### 3.1.8.8 Top channel flag column
   A binary feature based on rank (if channel rank < 1000 then 1, else 0).
-```{r}
+```{r Top channel flag}
 youtube_data$top_channel_flag <- as.numeric(youtube_data$channel_type_rank <1000)
 ```
 
@@ -534,7 +534,7 @@ youtube_data$yearly_earning <-( youtube_data$yearly_earning_low+youtube_data$yea
 
   Observation found that among the overall monthly income and annual income, there are rows where the monthly income is much greater than the annual income. The reason for this problem is that some rows with the lowest monthly income have na values, which turned into average values during previous processing, resulting in this unreasonable situation.
   Create a function to identify all these unreasonable rows
-```{r Detect Unreasonable Rows}
+```{r Detect unreasonable earnings rows}
 detect_unusual_rows <- function(data) {
   unusual_rows <- data[data$monthly_earning > data$yearly_earning, c("monthly_earning", "yearly_earning","monthly_earnings_low","monthly_earning_high","yearly_earning_low","yearly_earning_high")]
   print(unusual_rows)
