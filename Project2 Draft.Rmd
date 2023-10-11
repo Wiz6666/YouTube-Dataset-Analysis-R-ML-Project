@@ -33,7 +33,7 @@ knitr::opts_chunk$set(echo = TRUE)
   
 ## 1.2 Data Source and Characteristics
   The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023". (https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023)
-  A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[Elgiriyewithana2023]
+  A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[@Elgiriyewithana2023]
 
 
 
@@ -51,7 +51,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## 2.1 Load required R packages
   We load 'ggplot2' package [@Wickham2016] for making static graphics and 'dplyr' package [@Wickham2021] for data manipulation.
   We employ scatterplot matrices and correlation heatmaps for exploratory data analysis to understand the pairwise relationships between variables [@Friendly2002]...
-  We use the skimr package to obtain more comprehensive descriptive statistics of the numeric variables in the dataset [@McNamara et al.2021]...
+  We use the skimr package to obtain more comprehensive descriptive statistics of the numeric variables in the dataset [@McNamara2021]...
 ```{r Library, echo=TRUE, message=FALSE, warning=FALSE}
 library(ggplot2)
 library(gridExtra)
@@ -69,9 +69,11 @@ library(flextable)
 library(shiny)
 library(leaflet)
 library(maps)
-library(wordcloud)
 library(RColorBrewer)
 library(scales)
+library(readr)
+library(forecast)
+library(caret)
 
 ```
 
@@ -127,7 +129,7 @@ skimr::skim(raw_data) |>
   We can see from the standard output that 'video_views_rank' has 1 missing value, country_rank has 116, 'subscribers_for_last_30_days' has 337 the most in the whole dataset.
   The numbers of missing value of 'Gross.tertiary.education.enrollment.rate','Population', 'Unemployment.rate', 'Urban_population', 'Latitude' are the same , so it should be a systematic missing issue. So we need to pay attention to this issue in the following data cleaning.
   According to the numeric.hist, it seems most of the numeric variables are right skewnessed.The 'Unemployment.rate' does not look like a normal distribution,so as 'Longitude'.
-  Skewness analysis is crucial as it helps in understanding the symmetry of the data distribution [@Joanes & Gill1998]. We observe a higher percentage of right-skewed columns in our dataset, which implies that most numerical variables in our dataset have a distribution that has a tail on the right side, meaning the right side of the distribution is longer or fatter than the left side. This can impact the analysis and model performance because many statistical methods assume a normal distribution of the data. Right-skewed distributions are associated with higher values and outliers on the right side of the distribution which can greatly impact the mean and variance, and subsequently, distort the interpretation and performance of the model.
+  Skewness analysis is crucial as it helps in understanding the symmetry of the data distribution [@JoanesGill1998]. We observe a higher percentage of right-skewed columns in our dataset, which implies that most numerical variables in our dataset have a distribution that has a tail on the right side, meaning the right side of the distribution is longer or fatter than the left side. This can impact the analysis and model performance because many statistical methods assume a normal distribution of the data. Right-skewed distributions are associated with higher values and outliers on the right side of the distribution which can greatly impact the mean and variance, and subsequently, distort the interpretation and performance of the model.
   Addressing skewness is often important in regression models where the assumption of normally distributed residuals is made. Therefore, recognizing the presence of skewness can help us make informed decisions about data transformation techniques, such as logarithmic transformation or Box-Cox transformation, to attempt to normalize the data distribution before applying any modeling techniques. For example, this can be particularly relevant for variables like `subscribers`, `uploads`, and `lowest_monthly_earnings`, where skewness might impact the model’s ability to generalize well to unseen data and might lead to unreliable predictions or insights.
   
   Calculate Right skewness numbers and left skewness numbers
@@ -552,82 +554,178 @@ youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly
 
 ### 3.2.1 Object and features
 
-本次Project，我们希望建立模型预测Youtuber的收入水平属于什么档次
-我们选择使用的特征是："subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate",
-类别是： 高收入 vs 低收入
+In this project, we would build model and predict the high earning Youtuber on the top list.
+For now we pick some features like:
+    "subscribers","video_views","uploads","channel_type","created_year",
+    "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate"
+Category：high earning vs low earning
+All the features and category variables have been prepared in 3.1.8 Section.
 
 
-  数据整合:
-    从World Bank或其他公开数据源导入每个国家的GDP per capita数据。
-    将Youtuber数据和GDP per capita数据根据国家字段进行合并。
+Data Integration：
+  We would use the World Bank GDP data from the Project2 prject description, which includes GDP per capita for each country for each year. Based on the country field merge the GDP for 2022 year. We decided to use 2022 year GDP for each country as a reference. Because our Youtuber data is for 2023, 2022 is the closest year to 2023 in the GDP data, which ensures that real-word economic fluctuations will have the least impact because the years are closest.
+  After manually check, we realized that the first 4 rows of the GDP csv file are not data columns, so we skipped the first 4 rows using the skip parameter. When loading, our GPD data would only load up to the 2005 GDP and could not load the rest right side columns. So we solved the problem by using ChatGPT4 to learn how to select specific columns using the readr package.
+```{r gdp data path,echo=FALSE}
+gdp_data_path <- "API_NY.GDP.PCAP.CD_DS2_en_csv_v2_5871588.csv"
+# 使用 cols_only 函数为 read_csv 指定所需的列
+desired_columns <- cols_only(`Country Name` = col_character(), `2022` = col_double())
 
-  标准化Youtuber收入:
-    使用Youtuber的年收入与其所在国家的GDP per capita进行比较。
-    标准化收入=Youtuber年收入GDPpercapita标准化收入=GDPpercapitaYoutuber年收入​
-    这可以给出Youtuber的收入是其国家平均收入的多少倍。
+gdp_data <- read_csv(gdp_data_path, skip = 4, col_types = desired_columns)
+rm(desired_columns)
 
-  定义高收入的逻辑:
-    设定一个阈值。例如，如果Youtuber的标准化收入是国家GDP per capita的5倍或更多，则可以认为该Youtuber属于高收入群体。
-    为什么选择5倍？这是一个启发式选择，可以基于数据的初步分析或行业常识进行选择。在初步分析中，您可以观察标准化收入的分布情况，查看哪些Youtuber位于高收入的尾部，从而为阈值选择提供依据。
+gdp_data <- gdp_data %>%
+  rename(gdp_per_capita = "2022")
+```
 
-  验证定义:
-    一旦定义了高收入的逻辑，最好通过一些数据可视化来验证您的选择。例如，可以使用直方图或箱型图来查看标准化收入的分布，并检查高收入和低收入Youtuber的比例。
+Use merge command here.
+```{r merge gdp data}
+gdp_2022 <- gdp_data[,c("Country Name","gdp_per_capita")]
 
-  调整和优化:
-    根据验证步骤的结果，可能需要调整定义的逻辑。例如，如果您发现太多（或太少）的Youtuber被分类为高收入，您可能需要重新考虑和调整阈值。
+youtube_data <- merge(youtube_data,gdp_2022, by.x = "country",by.y = "Country Name", all.x = TRUE)
+rm(gdp_2022)
+```
 
+  If the country name is "Unknown", then we would use the medium of youtube_data$gdp_per_capita to swap it, it won't affect our data too much, and also, this is the same handling method that we used before in 3.1.3 Handle Missing value. Consistency is ensured here.
+```{r handle unknown country}
+median_gdp <- median(youtube_data$gdp_per_capita,na.rm = TRUE)
+youtube_data$gdp_per_capita[is.na(youtube_data$gdp_per_capita)] <- median_gdp
+rm(median_gdp)
+```
+
+
+Normalize Youtuber earning： 
+  We start by using Youtuber yearly earning divided by GDP per capita to observe how many time the Youtuber's income is the country's per capita income. Here we use annual income divided by GPD per capita, the reason for using average annual income rather than average monthly income is that anuual income is more stable and reduces fluctuations in income due to seasonality or other short term factors. Secondly, annual income is more objective when compared to annual GDP per capita.
+```{r normalized earning}
+youtube_data$normalized_earning <- as.numeric(youtube_data$yearly_earning/youtube_data$gdp_per_capita)
+```
+
+
+Logic for defining high income:
+    We would like to use the mean and add a certain number of standard deviations as a threshold for high income based on the standard deviation, but with this approach we have to first assume that income is normally distributed, which is not always the case in reality.
+    
+    
+Validation Definition:
+  We want to verify that our data is normally distributed by visualizing a graph.
+```{r check normalized earning}
+summary(youtube_data$normalized_earning)
+```
+As we can see there is a huge gap between the median and the mean. So we continue with kernel density estimates, and statistical tests, here we used the Shapiro-Wilk test; the Kolmogorov-Smirnov test; and the Anderson-Darling test
+```{r normalization test}
+#Kernel Density Estimation
+plot(density(youtube_data$normalized_earning), main="Kernel Density Estimation of Normalized Earnings", xlab="Normalized Earnings")
+
+# Shapiro-Wilk test
+shapiro_test <- shapiro.test(youtube_data$normalized_earning)
+print(shapiro_test)
+# Kolmogorov-Smirnov test
+ks_test <- ks.test(youtube_data$normalized_earning, "pnorm", mean(youtube_data$normalized_earning), sd(youtube_data$normalized_earning))
+print(ks_test)
+# Anderson-Darling test
+ad_test <- ad.test(youtube_data$normalized_earning)
+print(ad_test)
+```
+Shapiro-Wilk normality test.
+  The value of W is 0.44508.The value of this statistic ranges from 0 to 1, where 1 indicates that the data perfectly fits a normal distribution. However, the resulting W value is much less than 1, which is an initial indication that the data may not be normally distributed. Moreover, the p-value is very close to 0 (less than 2.2e-16), which means that we should reject the original hypothesis of normality.
+Kolmogorov-Smirnov test.
+  The D-value is 0.34033. this is the largest gap between the Earning data distribution and the perfect normal distribution. Again, the p-value is very small (less than 2.2e-16) which further confirms that the data is not normally distributed. The test also gives a warning about the presence of duplicate values (ties) in the data. This is because we used the median instead of the Youtuber for the unknown country.
+Anderson-Darling normality test.
+  The value of A is 191.44. the larger this value, the more the data deviates from the normal distribution. As with the previous two tests, a very small p-value (less than 2.2e-16) indicates that the data are not normally distributed.
+Summary: 
+  All three tests consistently show that the youtube_data$normalized_earning data does not currently conform to a normal distribution.
+
+
+Adjustment and Optimization:
+  While modern machine learning algorithms do not require the data to meet the assumption of a normal distribution. However, bringing the data closer to a normal distribution can improve model performance, especially for models such as linear regression and logistic regression.
+  We observe some very large values from the density plot, they are much larger than thousands of times the average GDP, and for these values they are simply too different. We will use a logarithmic transformation, which is what we learned from class to reduce the effect of these too large values. After that the multiples were adjusted to between 0-10, and according to the Density image, it's also leaning more towards a normal distribution.
+```{r log transformation}
+youtube_data$normalized_earning <- log(youtube_data$normalized_earning + 1)  
+```
+
+```{r Check normalized earning}
+summary(youtube_data$normalized_earning)
+# Shapiro-Wilk test
+shapiro_test <- shapiro.test(youtube_data$normalized_earning)
+print(shapiro_test)
+
+# Kolmogorov-Smirnov test
+ks_test <- ks.test(youtube_data$normalized_earning, "pnorm", mean(youtube_data$normalized_earning), sd(youtube_data$normalized_earning))
+print(ks_test)
+
+# Anderson-Darling test
+ad_test <- ad.test(youtube_data$normalized_earning)
+print(ad_test)
+# Density plot
+plot(density(youtube_data$normalized_earning), main="Kernel Density Estimation of Normalized Earnings", xlab="Normalized Earnings")
+
+rm(ad_test,ks_test,shapiro_test)
+```
+
+Shapiro-Wilk Test.
+  The w-value is 0.98524, which is close to 1. This is usually a good sign that the data is close to a normal distribution. However, the p-value = 3.358e-08 (very small) is much less than 0.05
+Kolmogorov-Smirnov Test.
+  D-value is 0.038866 which is small. p-value = 0.1134 which is greater than 0.05
+Anderson-Darling Test.
+  A value of 2.2485, large value. p-value = 1.056e-05 (very small), much less than 0.05
+
+  youtube_data$normalized_earning is close to a normal distribution, although it is not exactly normal. Many real-world applications have data that do not strictly follow a normal distribution, but if they are close enough, many of the properties of a normal distribution are still useful.
+  When defining high income based on mean and standard deviation, we choose the mean plus one times the standard deviation: about 84% of the data points will be less than this value. Thus, this would be a relatively loose definition of high income that includes about 16% of YouTubers.
+```{r}
+earning_threshold <- median(youtube_data$normalized_earning)+sd(youtube_data$normalized_earning)
+print(earning_threshold)
+```
+It means if a Youtuber's yearly earning is 6.2 times larger than GDP per capita then this Youtuber is a high earning Youtuber.
 
 
 ### 3.2.2 Remove unrelevant columns
   According to the instructions of project 2.Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
 ```{r Remove unrelevant colunmns}
-youtube_data <- youtube_data[c("subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","monthly_earning","yearly_earning")]
-```
-
-Use $12,535 to identify what means high income, and check the percentage of high income in dataset.
-```{r Check the high income proportion}
-# Define a function to calculate the proportion of high earners
-calculate_high_earning <- function(col, threshold) {
-  # Using vectorized comparison to obtain a logical vector for high and low earners
-  high_logical <- col >= threshold  
-  low_logical <- col < threshold     
-  # Calculate the count of high and low earners using the sum function.
-  # This works because in R, TRUE is treated as 1 and FALSE as 0.
-  high_count <- sum(high_logical)    
-  low_count <- sum(low_logical)      
-  # Calculate the percentage of high and low earners
-  high_earning_percentage <- high_count / length(col)  
-  low_earning_percentage <- low_count / length(col)    
-  # Return a named list with the calculated percentages
-  return(list(high_earning_percentage = high_earning_percentage, 
-              low_earning_percentage = low_earning_percentage))
-}
-
-
-# Call the function on the 'monthly_earning' column with a defined threshold of 12535
-earnings_percentages <- calculate_high_earning(youtube_data$monthly_earning, 12535)
-cat("There are", earnings_percentages$high_earning_percentage * 100, "% of YouTubers that belong to the high-income level.")
-
+youtube_data <- youtube_data[
+  c(
+    "normalized_earning",
+    "subscribers","video_views","uploads","channel_type","created_year","category",
+    "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate"
+    )
+  ]
 ```
 
 
-### 3.2.43 Split Data
-According to the different income levels, we need to split the youtube_data into training data and testing data
+### 3.2.3 Feature Engineering
+We have already created required features in 3.1.8 Section.
+  "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate"
+  Here, we would use 6.2 times as threshold, build a new binary column, if Youtuber earning is larger than 6.2 return 1, else 0.
 ```{r}
-
-```
-
-```[r]
-new_youtube_data <- youtube_data[c(video_views, subscribers,video_views_last_30_days)]
+youtube_data$earning_class <- ifelse(youtube_data$normalized_earning > 6.2, 1, 0)
+youtube_data <- subset(youtube_data, select = -normalized_earning)
 ```
 
 
+```{r}
+names(youtube_data)
+```
+### 3.2.4 Training and Testing dataset 
+  According to the different income levels, we need to split the youtube_data into training data and testing data. We do a 20/80 split to form the training and test sets.
+  After google many articles and learn caret pacakge by ourselves, we decide to use "creatDataPartition" function in caret package, it ensures that the distribution of the target variable is taken into account when partitioning the data.[@Kuhn2019]
+```{r}
+#Set a seed 
+set.seed(562816)
+
+train_index <- createDataPartition(youtube_data$earning_class, p=.8,list=FALSE,times=1)
+
+youtube_train <- youtube_data[train_index,]
+youtube_test <- youtube_data[-train_index,]
+```
 
 
 
 
 
 
+
+
+references.bib
+title: 
+output: html_document
+bibliography: references.bib
 
 # Reference
 @Online{Elgiriyewithana2023,
@@ -695,7 +793,13 @@ new_youtube_data <- youtube_data[c(video_views, subscribers,video_views_last_30_
   pages = {183-189}
 }
 
-
+@online{Kuhn2019,
+  author    = {Max Kuhn},
+  title     = {The caret Package 4.1 Simple Splitting Based on the Outcome},
+  year      = {2019},
+  url       = {http://topepo.github.io/caret/data-splitting.html},
+  note      = {Accessed: 2023-10-11}
+}
 
 
 
