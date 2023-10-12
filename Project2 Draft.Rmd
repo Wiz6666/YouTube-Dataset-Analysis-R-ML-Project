@@ -20,6 +20,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
+
+
+
 # Part1 - Introduction
 
 
@@ -247,7 +250,7 @@ rm(data_types, data_sample)
   
 ### 3.1.3 Handle Missing value
   We've identified three representations for missing data in our dataset: "0", "NaN", and "nan". Our goal is to standardize these by converting them to NA. Following this conversion, we aim to tally the number of NA values in each column. It's our assumption that "0" serves as a sentinel value indicating missing data. 
-```{r Kill 0&NA and delete NA}
+```{r Kill 0 &NA and delete NA}
 #Change 0 or 'nan' or 'NaN' to NA value
 #Char columns
 raw_data[raw_data == 'nan' | raw_data == "NaN" | raw_data == 0] <- NA
@@ -552,18 +555,19 @@ detect_unusual_rows(youtube_data)
 youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly_earning, ]
 ```
 
+
+
+
 ## 3.2 Data Preparation
 
 
 ### 3.2.1 Object and features
-
 In this project, we would build model and predict the high earning Youtuber on the top list.
 For now we pick some features like:
-    "subscribers","video_views","uploads","channel_type","created_year",
-    "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate"
-Category：high earning vs low earning
+  "subscribers","video_views","uploads","channel_type","created_year",
+  "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate"
+Predict variable：high/low earning
 All the features and category variables have been prepared in 3.1.8 Section.
-
 
 Data Integration：
   We would use the World Bank GDP data from the Project2 prject description, which includes GDP per capita for each country for each year. Based on the country field merge the GDP for 2022 year. We decided to use 2022 year GDP for each country as a reference. Because our Youtuber data is for 2023, 2022 is the closest year to 2023 in the GDP data, which ensures that real-word economic fluctuations will have the least impact because the years are closest.
@@ -579,7 +583,6 @@ rm(desired_columns)
 gdp_data <- gdp_data %>%
   rename(gdp_per_capita = "2022")
 ```
-
 Use merge command here.
 ```{r merge gdp data}
 gdp_2022 <- gdp_data[,c("Country Name","gdp_per_capita")]
@@ -680,7 +683,7 @@ It means if a Youtuber's yearly earning is 6.2 times larger than GDP per capita 
 
 
 ### 3.2.2 Remove unrelevant columns
-  According to the instructions of project 2.Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
+  According to the instructions of project 2. Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
 ```{r Remove unrelevant colunmns}
 youtube_data <- youtube_data[
   c(
@@ -711,23 +714,26 @@ names(youtube_data)
   According to the different income levels, we need to split the youtube_data into training data and testing data. We do a 20/80 split to form the training and test sets.
   After google many articles and learn caret pacakge by ourselves, we decide to use "creatDataPartition" function in caret package, it ensures that the distribution of the target variable is taken into account when partitioning the data.[@Kuhn2019]
 ```{r}
-#Set a seed 
+# Set a seed for reproducibility
 set.seed(562816)
 
-train_index <- createDataPartition(youtube_data$earning_class, p=.8,list=FALSE,times=1)
+# Split the data into training and testing sets using a stratified sampling method. 
+train_index <- createDataPartition(youtube_data$earning_class, p = 0.8, list = FALSE, times = 1)
 
-youtube_train <- youtube_data[train_index,]
-youtube_test <- youtube_data[-train_index,]
+# Subset the original dataset to create training and testing datasets based on the indices generated above.
+youtube_train <- youtube_data[train_index, ]
+youtube_test  <- youtube_data[-train_index, ]
 
+# Identify and store the names of all independent variables (i.e., all variables excluding the target 'earning_class').
+independent_variables <- setdiff(colnames(youtube_data), "earning_class")
 
-#创建一个变量储存X(Independent variables) 
-independent_variables <- setdiff(colnames(youtube_data),"earning_class")
+# From the list of independent variables, identify and store the names of numeric and integer type variables.
+numeric_independent_variables <- independent_variables[sapply(youtube_data[, independent_variables], class) %in% c("numeric", "integer")]
 
-#创建一个变量储存其中的数值变量
-numeric_independent_variables <- independent_variables[sapply(youtube_data[,independent_variables],class) %in% c("numeric","integer")]
-
-categorical_independent_variables <- independent_variables[sapply(youtube_data[,independent_variables],class) %in% c("factor","character")]
+# Similarly, from the list of independent variables, identify and store the names of factor and character type variables.
+categorical_independent_variables <- independent_variables[sapply(youtube_data[, independent_variables], class) %in% c("factor", "character")]
 ```
+
 
 
 
@@ -737,89 +743,185 @@ categorical_independent_variables <- independent_variables[sapply(youtube_data[,
 
 # Part4 Classification
 
+
+
+
 ## 4.1 Dependent Variable & Independent Variable
 Dependent Variable: earning_class
 Independent varibale: "subscribers","video_views","uploads","channel_type","created_year","category","subs_engagement","uploads_frequencey","average_views_per_video"     "urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","earning_class"   
 
+
+
+
 ## 4.2 Feature Selection
-我们使用单一变量模型评估features。制作评估每个变量的Function
 
-
-
-
-
-
-
-```{r category single variable model}
+### 4.2.1 Function build up
+  Build single variable model function. Use Single variable model for each variable to determine which has the most predictive power.
+```{r utility-functions}
+#Define target column and positive label
 target_column <- 'earning_class'
 positive_label <- '1'
+```
 
 
+```{r single variable model function}
+Single_variable_model <- function(target_column, feature_column, prediction_column){
+  
+  # Ensure that the input vectors are of the same length
+  if (!(length(target_column) == length(feature_column) && length(target_column) == length(prediction_column))) {
+    stop("All input vectors must have the same length")
+  }
 
-Single_variable_model <- function(target_column,feature_column, prediction_column){
-  #计算高收入的概率
-  probility_of_positive <- sum(target_column == positive_label)/length(target_column)
-  #当feature_column是NA时，计算高收入的分布
+  # Small constant to avoid division by zero
+  epsilon <- 1.0e-3
+  
+  # Calculate the overall probability of the positive class
+  probility_of_positive <- sum(target_column == positive_label) / length(target_column)
+  
+  # For NAs in feature_column, compute the distribution of target_column
   na_table <- table(as.factor(target_column[is.na(feature_column)]))
-  #当feature_column是NA时，使用上述的na_table 计算高收入为正的概率
-  probility_of_positive_with_na <- (na_table/sum(na_table))[positive_label]
   
-  #创建一个表格显示 feature_column不同取值 与target_column的关系
-  value_table <- table(as.factor(target_column),feature_column)
+  # For NAs in feature_column, compute the conditional probability of the positive class
+  probility_of_positive_with_na <- ifelse(is.na((na_table / sum(na_table))[positive_label]), probility_of_positive, (na_table / sum(na_table))[positive_label])
   
-  # 对于feature_column的每一个取值，计算target_variable为正类的条件概率
-  probility_of_positive_with_val <- (value_table[positive_label, ] + 1.0e-3 * probility_of_positive) / (colSums(value_table) + 1.0e-3)
+  # Create a table to represent the relationship between different values of feature_column and target_column
+  value_table <- table(as.factor(target_column), feature_column, useNA = "ifany")
   
-  # 使用上述概率进行预测
+  # Compute conditional probabilities for each value of feature_column
+  probility_of_positive_with_val <- (value_table[positive_label, ] + epsilon * probility_of_positive) / (colSums(value_table) + epsilon)
+  
+  # Generate predictions based on conditional probabilities
   predictions <- probility_of_positive_with_val[prediction_column]
   
-  # 对于prediction_column中的NA值，使用probPosWithNA替代
+  # Handle NA values in prediction_column
   predictions[is.na(prediction_column)] <- probility_of_positive_with_na
   
-  # 对于那些在训练数据中未出现，但可能在预测数据中出现的feature_column值，使用总体probPositive替代
+  # Handle values in prediction_column that didn't appear in the training data
   predictions[is.na(predictions)] <- probility_of_positive
   
-  # 返回预测值
+  # Return predictions
   return(predictions)
 }
-```
-
-```{r}
-# 使用youtube_train数据集中的category特征预测earning_class列
-predicted_probs <- Single_variable_model(
-  target_column = youtube_train$earning_class, 
-  feature_column = youtube_train$category, 
-  prediction_column = youtube_train$category
-)
-
-
-# 查看前几个预测的结果
-head(predicted_probs)
 
 ```
 
-
-
-AUC
-```{r}
-calcAUC <- function(predcol, outcol) {
+  Build up AUC calculator function.
+  
+```{r AUC calculator function}
+AUC_calculator <- function(predcol, outcol) {
     perf <- performance(prediction(predcol, outcol == positive_label), 'auc')
     return(as.numeric(perf@y.values))
 }
+```
 
-# 为每个分类变量计算AUC
+```{r discretize numeric variables}
+# 将数值型列离散化的函数
+discretizeVariable <- function(column) {
+    quantiles <- quantile(column, probs = seq(0, 1, 0.1), na.rm = TRUE)
+    discrete_column <- cut(column, unique(quantiles))
+    return(discrete_column)
+}
+```
+
+
+```{r single variable model function for discretized numeric variables}
+# 单一变量预测的函数（使用离散化的数值特征）
+SingleVariablePredictNumeric <- function(target_column, feature_column, prediction_column, subset) {
+    feature_discrete <- discretizeVariable(feature_column[subset])
+    prediction_discrete <- discretizeVariable(prediction_column[subset])
+    return(Single_variable_model(target_column[subset], feature_discrete, prediction_discrete))
+}
+
+```
+
+
+### 4.2.2 Analyze Variables
+
+#### 4.2.2.1 Analyzing Categorical variables:
+
+  Call Single variable model & AUC calculator function， check AUC value for categorical independent variables.
+```{r}
+
 for (var in categorical_independent_variables) {
     prediction_probs <- Single_variable_model(target_column = youtube_train$earning_class, 
                                              feature_column = youtube_train[, var],
                                              prediction_column = youtube_train[, var])
-    auc <- calcAUC(prediction_probs, youtube_train$earning_class)
+    auc <- AUC_calculator(prediction_probs, youtube_train$earning_class)
     if (auc >= 0.1) {
-        print(sprintf("%s: AUC: %4.3f", var, auc))
+        print(sprintf("%s - AUC: %4.3f", var, auc))
     }
 }
 ```
 
-AUC plot
+
+#### 4.2.2.2 Analyzing Numeric variables:
+  Check the AUC value for numeric independent variables. We need to change the numeric data into category data first as the instruction in Week9 Slides.
+```{r}
+# 对每个数值型特征进行处理
+for (var in numeric_independent_variables) {
+    pred_col_name <- paste('pred', var, sep = '_')
+    youtube_train[, pred_col_name] <- SingleVariablePredictNumeric(youtube_train$earning_class, youtube_train[, var], youtube_train[, var])
+    auc_train <- AUC_calculator(youtube_train[, pred_col_name], youtube_train$earning_class)
+    if (auc_train >= 0.55) {
+        print(sprintf("%s: AUC: %4.3f", var, auc_train))
+    }
+}
+
+```
+
+开始使用100次交叉重复验证
+100次重复交叉验证
+```{r}
+# 单一变量预测的函数（使用离散化的数值特征）
+
+# 对每个数值型特征进行处理
+vars <- numeric_independent_variables 
+
+for (var in vars) {
+    aucs <- rep(0, 100)
+    
+    for (rep in 1:length(aucs)) {
+        useForCalRep <- rbinom(n=nrow(youtube_train), size=1, prob=0.1) > 0
+        
+        predRep <- SingleVariablePredictNumeric(youtube_train$earning_class, 
+                                                youtube_train[, var], 
+                                                youtube_train[, var], 
+                                                !useForCalRep)  # Pass the subset to the function
+        
+        # Only calculate AUC for the subset used for prediction
+        actual_subset_labels = youtube_train$earning_class[!useForCalRep]
+        aucs[rep] <- AUC_calculator(predRep, actual_subset_labels)
+    }
+    
+    print(sprintf("%s: mean: %4.3f; sd: %4.3f", var, mean(aucs), sd(aucs)))
+}
+
+```
+urban_rate (0.892) 和 edu_ratio (0.886) 
+依然是最强的预测特征。这两个特征在预测目标变量上的表现非常好。
+
+video_views_increasing_rate (0.779) 和 uploads_frequencey (0.745) 
+仍然是较强的特征，预测能力强。
+
+video_views (0.682), subs_engagement (0.680) 和 average_views_per_video (0.672)
+AUC值仍然相对较高，表现为中等的预测能力。
+    
+uploads (0.716) 
+AUC值稍有增加，但仍在前面提到的范围内。
+
+subscribers (0.623), created_year (0.598) 和 age (0.592)
+AUC值略有改变，但相对较低。它们仍然比随机预测更好，但预测能力较弱。
+
+top_channel_flag (0.551) 
+AUC值最低，这表明它可能对预测目标变量的贡献较小。
+
+
+
+
+### 4.2.3 ROC plot
+
+
+建立ROC函数 ， 用shiny输出ROC图表，
 ```{r}
 library(ROCit)
 
@@ -828,15 +930,22 @@ plot_roc <- function(predcol, outcol, colour_id=2, overlaid=FALSE) {
     par(new = overlaid)
     plot(ROCit_obj, col = c(colour_id, 1), legend = FALSE, YIndex = FALSE, values = FALSE)
 }
-
-# 例如，为第一个分类变量绘制ROC曲线（确保该变量AUC大于0.8）
-var_to_plot <- categorical_independent_variables[1]
-prediction_probs <- Single_variable_model(target_column = youtube_train$earning_class, 
-                                         feature_column = youtube_train[, var_to_plot],
-                                         prediction_column = youtube_train[, var_to_plot])
-
-plot_roc(prediction_probs, youtube_train$earning_class)
 ```
+
+
+1.使用Shiny展示ROC plot考虑到读者多样性，我们同时展示两个ROC图表以便读者需要对比不同的ROC
+```{r}
+# Load Shiny app script
+source("app.R")
+
+# Run Shiny app
+shinyApp(ui= ui_double_roc_plot, server = server_double_roc_plot)
+
+```
+
+
+
+
 
 
 double density comparing AUC
@@ -861,55 +970,6 @@ fig2 <- ggplot(youtube_train) + geom_density(aes(x = prediction_probs2, color = 
 
 grid.arrange(fig1, fig2, ncol=2)
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-首先我们需要把数字类型变量转化成分类变量：
-```{r}
-
-# 将数值型列离散化的函数
-discretizeVariable <- function(column) {
-    quantiles <- quantile(column, probs = seq(0, 1, 0.1), na.rm = TRUE)
-    discrete_column <- cut(column, unique(quantiles))
-    return(discrete_column)
-}
-
-# 单一变量预测的函数（使用离散化的数值特征）
-SingleVariablePredictNumeric <- function(target_column, feature_column, prediction_column) {
-    feature_discrete <- discretizeVariable(feature_column)
-    prediction_discrete <- discretizeVariable(prediction_column)
-    return(Single_variable_model(target_column, feature_discrete, prediction_discrete))
-}
-
-# 对每个数值型特征进行处理
-for (var in numeric_independent_variables) {
-    pred_col_name <- paste('pred', var, sep = '_')
-    youtube_train[, pred_col_name] <- SingleVariablePredictNumeric(youtube_train$earning_class, youtube_train[, var], youtube_train[, var])
-    auc_train <- calcAUC(youtube_train[, pred_col_name], youtube_train$earning_class)
-    if (auc_train >= 0.55) {
-        print(sprintf("%s: AUC: %4.3f", var, auc_train))
-    }
-}
-
-```
-
-
-
 
 
 
