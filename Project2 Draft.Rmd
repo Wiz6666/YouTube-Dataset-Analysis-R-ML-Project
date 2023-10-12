@@ -74,7 +74,10 @@ library(scales)
 library(readr)
 library(forecast)
 library(caret)
-
+library(knitr)
+library(ROCR)
+library(ROCit)
+library(nortest)
 ```
 
 
@@ -423,7 +426,7 @@ detect_outliers_zscore <- function(data, column_names, threshold = 3) {
 # Detect outliers in the data after truncation using the function above
 outliers_count_after_truncate <- detect_outliers_zscore(raw_data, numeric_vars_name)
 print(outliers_count_after_truncate)
-rm(outliers_count_after_truncate)
+rm(outliers_count_after_truncate,numeric_vars,categorical_vars)
 ```
   Ultimately, we observe a reduction in the impact of outliers, but it's impractical to address all of them. Overcorrecting could potentially distort the data. With the cleaning phase now complete, we're ready to transition to the classification stage.
 
@@ -702,6 +705,8 @@ youtube_data <- subset(youtube_data, select = -normalized_earning)
 ```{r}
 names(youtube_data)
 ```
+
+
 ### 3.2.4 Training and Testing dataset 
   According to the different income levels, we need to split the youtube_data into training data and testing data. We do a 20/80 split to form the training and test sets.
   After google many articles and learn caret pacakge by ourselves, we decide to use "creatDataPartition" function in caret package, it ensures that the distribution of the target variable is taken into account when partitioning the data.[@Kuhn2019]
@@ -713,7 +718,205 @@ train_index <- createDataPartition(youtube_data$earning_class, p=.8,list=FALSE,t
 
 youtube_train <- youtube_data[train_index,]
 youtube_test <- youtube_data[-train_index,]
+
+
+#创建一个变量储存X(Independent variables) 
+independent_variables <- setdiff(colnames(youtube_data),"earning_class")
+
+#创建一个变量储存其中的数值变量
+numeric_independent_variables <- independent_variables[sapply(youtube_data[,independent_variables],class) %in% c("numeric","integer")]
+
+categorical_independent_variables <- independent_variables[sapply(youtube_data[,independent_variables],class) %in% c("factor","character")]
 ```
+
+
+
+
+
+
+
+# Part4 Classification
+
+## 4.1 Dependent Variable & Independent Variable
+Dependent Variable: earning_class
+Independent varibale: "subscribers","video_views","uploads","channel_type","created_year","category","subs_engagement","uploads_frequencey","average_views_per_video"     "urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","earning_class"   
+
+## 4.2 Feature Selection
+我们使用单一变量模型评估features。制作评估每个变量的Function
+
+
+
+
+
+
+
+```{r category single variable model}
+target_column <- 'earning_class'
+positive_label <- '1'
+
+
+
+Single_variable_model <- function(target_column,feature_column, prediction_column){
+  #计算高收入的概率
+  probility_of_positive <- sum(target_column == positive_label)/length(target_column)
+  #当feature_column是NA时，计算高收入的分布
+  na_table <- table(as.factor(target_column[is.na(feature_column)]))
+  #当feature_column是NA时，使用上述的na_table 计算高收入为正的概率
+  probility_of_positive_with_na <- (na_table/sum(na_table))[positive_label]
+  
+  #创建一个表格显示 feature_column不同取值 与target_column的关系
+  value_table <- table(as.factor(target_column),feature_column)
+  
+  # 对于feature_column的每一个取值，计算target_variable为正类的条件概率
+  probility_of_positive_with_val <- (value_table[positive_label, ] + 1.0e-3 * probility_of_positive) / (colSums(value_table) + 1.0e-3)
+  
+  # 使用上述概率进行预测
+  predictions <- probility_of_positive_with_val[prediction_column]
+  
+  # 对于prediction_column中的NA值，使用probPosWithNA替代
+  predictions[is.na(prediction_column)] <- probility_of_positive_with_na
+  
+  # 对于那些在训练数据中未出现，但可能在预测数据中出现的feature_column值，使用总体probPositive替代
+  predictions[is.na(predictions)] <- probility_of_positive
+  
+  # 返回预测值
+  return(predictions)
+}
+```
+
+```{r}
+# 使用youtube_train数据集中的category特征预测earning_class列
+predicted_probs <- Single_variable_model(
+  target_column = youtube_train$earning_class, 
+  feature_column = youtube_train$category, 
+  prediction_column = youtube_train$category
+)
+
+
+# 查看前几个预测的结果
+head(predicted_probs)
+
+```
+
+
+
+AUC
+```{r}
+calcAUC <- function(predcol, outcol) {
+    perf <- performance(prediction(predcol, outcol == positive_label), 'auc')
+    return(as.numeric(perf@y.values))
+}
+
+# 为每个分类变量计算AUC
+for (var in categorical_independent_variables) {
+    prediction_probs <- Single_variable_model(target_column = youtube_train$earning_class, 
+                                             feature_column = youtube_train[, var],
+                                             prediction_column = youtube_train[, var])
+    auc <- calcAUC(prediction_probs, youtube_train$earning_class)
+    if (auc >= 0.1) {
+        print(sprintf("%s: AUC: %4.3f", var, auc))
+    }
+}
+```
+
+AUC plot
+```{r}
+library(ROCit)
+
+plot_roc <- function(predcol, outcol, colour_id=2, overlaid=FALSE) {
+    ROCit_obj <- rocit(score = predcol, class = outcol == positive_label)
+    par(new = overlaid)
+    plot(ROCit_obj, col = c(colour_id, 1), legend = FALSE, YIndex = FALSE, values = FALSE)
+}
+
+# 例如，为第一个分类变量绘制ROC曲线（确保该变量AUC大于0.8）
+var_to_plot <- categorical_independent_variables[1]
+prediction_probs <- Single_variable_model(target_column = youtube_train$earning_class, 
+                                         feature_column = youtube_train[, var_to_plot],
+                                         prediction_column = youtube_train[, var_to_plot])
+
+plot_roc(prediction_probs, youtube_train$earning_class)
+```
+
+
+double density comparing AUC
+```{r}
+library(ggplot2)
+library(gridExtra)
+
+# 假设我们想比较前两个分类变量的AUC（确保它们的AUC都大于0.8）
+var1 <- categorical_independent_variables[1]
+var2 <- categorical_independent_variables[2]
+
+prediction_probs1 <- Single_variable_model(target_column = youtube_train$earning_class, 
+                                          feature_column = youtube_train[, var1],
+                                          prediction_column = youtube_train[, var1])
+
+prediction_probs2 <- Single_variable_model(target_column = youtube_train$earning_class, 
+                                          feature_column = youtube_train[, var2],
+                                          prediction_column = youtube_train[, var2])
+
+fig1 <- ggplot(youtube_train) + geom_density(aes(x = prediction_probs1, color = as.factor(earning_class)))
+fig2 <- ggplot(youtube_train) + geom_density(aes(x = prediction_probs2, color = as.factor(earning_class)))
+
+grid.arrange(fig1, fig2, ncol=2)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+首先我们需要把数字类型变量转化成分类变量：
+```{r}
+
+# 将数值型列离散化的函数
+discretizeVariable <- function(column) {
+    quantiles <- quantile(column, probs = seq(0, 1, 0.1), na.rm = TRUE)
+    discrete_column <- cut(column, unique(quantiles))
+    return(discrete_column)
+}
+
+# 单一变量预测的函数（使用离散化的数值特征）
+SingleVariablePredictNumeric <- function(target_column, feature_column, prediction_column) {
+    feature_discrete <- discretizeVariable(feature_column)
+    prediction_discrete <- discretizeVariable(prediction_column)
+    return(Single_variable_model(target_column, feature_discrete, prediction_discrete))
+}
+
+# 对每个数值型特征进行处理
+for (var in numeric_independent_variables) {
+    pred_col_name <- paste('pred', var, sep = '_')
+    youtube_train[, pred_col_name] <- SingleVariablePredictNumeric(youtube_train$earning_class, youtube_train[, var], youtube_train[, var])
+    auc_train <- calcAUC(youtube_train[, pred_col_name], youtube_train$earning_class)
+    if (auc_train >= 0.55) {
+        print(sprintf("%s: AUC: %4.3f", var, auc_train))
+    }
+}
+
+```
+
+
+
+
+
+
+## 4.3 Null model
+
+
+
 
 
 
