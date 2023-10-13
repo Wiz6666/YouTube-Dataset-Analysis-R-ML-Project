@@ -81,6 +81,7 @@ library(knitr)
 library(ROCR)
 library(ROCit)
 library(nortest)
+library(pROC)
 ```
 
 
@@ -530,7 +531,8 @@ youtube_data$top_channel_flag <- as.numeric(youtube_data$channel_type_rank <1000
 #### 3.1.8.9 Video views increasing rate column
   video_views_last_30_days/ video_view. This shows the increasing rate about video views.
 ```{r video_views_increasing_rate}
-youtube_data$video_views_increasing_rate <- (youtube_data$video_views_last_30_days/youtube_data$video_views)
+youtube_data$video_views_increasing_rate <- (youtube_data$video_views_last_30_days/youtube_data$video_views)*100
+youtube_data$video_views_increasing_rate <- sprintf("%.4f%%", youtube_data$video_views_increasing_rate)
 ```
 
 #### 3.1.8.3 Add average earning columns
@@ -642,7 +644,7 @@ Summary:
 
 Adjustment and Optimization:
   While modern machine learning algorithms do not require the data to meet the assumption of a normal distribution. However, bringing the data closer to a normal distribution can improve model performance, especially for models such as linear regression and logistic regression.
-  We observe some very large values from the density plot, they are much larger than thousands of times the average GDP, and for these values they are simply too different. We will use a logarithmic transformation, which is what we learned from class to reduce the effect of these too large values. After that the multiples were adjusted to between 0-10, and according to the Density image, it's also leaning more towards a normal distribution.
+  We observe some very large values from the density plot, they are much larger than thousands of times the average GDP, and for these values they are simply too different. We will use a logarithmic transformation.The results of data analysis show that after Log-transformation, the data presents different distribution characteristics[Feng2014]. More conducive to classification, which is what we learned from class to reduce the effect of these too large values. After that the multiples were adjusted to between 0-10, and according to the Density image, it's also leaning more towards a normal distribution.
 ```{r log transformation}
 youtube_data$normalized_earning <- log(youtube_data$normalized_earning + 1)  
 ```
@@ -840,7 +842,7 @@ SingleVariablePredictNumeric <- function(target_column, feature_column, predicti
 #### 4.2.2.1 Analyzing Categorical variables:
 
   Call Single variable model & AUC calculator function， check AUC value for categorical independent variables.
-```{r}
+```{r analyse categorical variables}
 
 for (var in categorical_independent_variables) {
     prediction_probs <- Single_variable_model(target_column = youtube_train$earning_class, 
@@ -856,7 +858,7 @@ for (var in categorical_independent_variables) {
 
 #### 4.2.2.2 Analyzing Numeric variables:
   Check the AUC value for numeric independent variables. We need to change the numeric data into category data first as the instruction in Week9 Slides.
-```{r}
+```{r analyse numeric variables}
 # 对每个数值型特征进行处理
 for (var in numeric_independent_variables) {
     pred_col_name <- paste('pred', var, sep = '_')
@@ -949,7 +951,7 @@ shinyApp(ui= ui_double_roc_plot, server = server_double_roc_plot)
 
 
 double density comparing AUC
-```{r}
+```{r double density plot,fig.width=18}
 library(ggplot2)
 library(gridExtra)
 
@@ -974,8 +976,38 @@ grid.arrange(fig1, fig2, ncol=2)
 
 
 ## 4.3 Null model
+### 4.3.1 Build Null Model
+By analyzing only the target variable, a null model is created and the AUC of the model is evaluated. The AUC value of the null model can help comparing single variable.
+```{r build null model}
+# Calculate the number of positive class instances (Npos)
+Npos <- sum(youtube_train[, target_column] == 1)
+cat("Number of positive class (target_column == 1) in youtube_train:", Npos, "rows\n")
 
+# Calculate the number of negative class instances (Nneg)
+Nneg <- nrow(youtube_train) - Npos
+cat("Number of negative class (target_column == 0) in youtube_train:", Nneg, "rows\n")
 
+# Calculate the Null Model prediction, which is the proportion of positive class
+pred.Null <- Npos / (Npos + Nneg)
+cat("Proportion of target_column == 1 in youtube_train (Null Model prediction):", pred.Null, "\n")
+
+# Create a vector of Null Model predictions with the same length as the dataset
+null_model_predictions <- rep(pred.Null, nrow(youtube_train))
+
+# Calculate the Null Model AUC using the pROC package
+library(pROC) 
+roc_obj <- roc(youtube_train[, target_column], null_model_predictions)
+null_model_auc <- auc(roc_obj)
+
+cat("Null Model AUC:", null_model_auc, "\n")
+
+```
+### 4.3.2 Select suitable single variable
+According to the knowledge of lectures, If the AUC value of a single variable model is close to or lower than the AUC value of the null model, it means that the single variable model may not provide enough information for predicting the target variable. In this case, using this single variable model may not have a significant impact on model performance.
+So we use a function to find which features' AUC values are significantly better than Null model
+```{r}
+
+```
 
 
 
@@ -1064,7 +1096,15 @@ bibliography: references.bib
   note      = {Accessed: 2023-10-11}
 }
 
-
+@Article{Feng2014,
+author = {Feng, C. and Wang, H. and Lu, N. and Chen, T. and He, H. and Lu, Y. and Tu, X. M.},
+title = {Log-transformation and its implications for data analysis},
+journal = {Shanghai Arch Psychiatry},
+year = {2014},
+volume = {26},
+number = {2},
+pages = {105-109},
+}
 
 1.Introduction
 2.Setup
