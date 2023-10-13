@@ -531,8 +531,7 @@ youtube_data$top_channel_flag <- as.numeric(youtube_data$channel_type_rank <1000
 #### 3.1.8.9 Video views increasing rate column
   video_views_last_30_days/ video_view. This shows the increasing rate about video views.
 ```{r video_views_increasing_rate}
-youtube_data$video_views_increasing_rate <- (youtube_data$video_views_last_30_days/youtube_data$video_views)*100
-youtube_data$video_views_increasing_rate <- sprintf("%.4f%%", youtube_data$video_views_increasing_rate)
+youtube_data$video_views_increasing_rate <- (youtube_data$video_views_last_30_days/youtube_data$video_views)
 ```
 
 #### 3.1.8.3 Add average earning columns
@@ -1004,9 +1003,46 @@ cat("Null Model AUC:", null_model_auc, "\n")
 ```
 ### 4.3.2 Select suitable single variable
 According to the knowledge of lectures, If the AUC value of a single variable model is close to or lower than the AUC value of the null model, it means that the single variable model may not provide enough information for predicting the target variable. In this case, using this single variable model may not have a significant impact on model performance.
-So we use a function to find which features' AUC values are significantly better than Null model
+使用likelihood去比较单变量和空变量
 ```{r}
+positive_label <- '1'
+# Define a function to compute log likelihood 
+logLikelihood <- function(ytrue, ypred, epsilon=1e-6) {
+                          sum(ifelse(ytrue==positive_label, log(ypred+epsilon), log(1-ypred-epsilon)), na.rm=T)
+}
+# Compute the likelihood of the Null model on the Training model
+logNull <- logLikelihood(youtube_train[,target_column], sum(youtube_train[,target_column]==pos)/nrow(youtube_train))
+cat(logNull)
+```
+#### 4.3.2.1 The likelihood of categorical variables
+```{r}
+# By adjusting the value of minDrop, we can control how strictly the variables are selected
+selCatVars <- c()
+minDrop <- 10 #可能还需要调整值的大小
+for (v in categorical_independent_variables) {
+    pi <- paste( 'pred',v, sep='')
+    binary_var <- ifelse(youtube_train$v == "desired_level", 1, 0)
+    devDrop <- 2 * (logLikelihood(youtube_train[, target_column], binary_var) - logNull)
+    if (devDrop >= minDrop) {
+      print(sprintf("%s, deviance reduction: %g", pi, devDrop))
+      selCatVars <- c(selCatVars, pi)
+ }
+}
 
+```
+#### 4.3.2.2 The likelihood of numeric variables
+```{r warning=FALSE}
+selNumVars <- c()
+minDrop <- 10 # 可能还需要调整值的大小
+for (v in numeric_independent_variables) {
+  pi <- paste(v, sep='')
+  epsilon <- 1e-6  # Small constant to avoid division by zero
+  devDrop <- 2 * (logLikelihood(youtube_train[, target_column], youtube_train[, pi], epsilon) - logNull)
+  if (devDrop >= minDrop) {
+    print(sprintf("%s, deviance reduction: %g", pi, devDrop))
+    selNumVars <- c(selNumVars, pi)
+ }
+}
 ```
 
 
