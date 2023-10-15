@@ -82,6 +82,9 @@ library(ROCR)
 library(ROCit)
 library(nortest)
 library(pROC)
+library(glmnet)
+library(car)
+library(nnet)
 ```
 
 
@@ -1001,7 +1004,8 @@ null_model_auc <- auc(roc_obj)
 cat("Null Model AUC:", null_model_auc, "\n")
 
 ```
-### 4.3.2 Select suitable single variable
+## 4.4 Select suitable single variable
+### 4.4.1 Using Log likelihood and deviance
 According to the knowledge of lectures, If the AUC value of a single variable model is close to or lower than the AUC value of the null model, it means that the single variable model may not provide enough information for predicting the target variable. In this case, using this single variable model may not have a significant impact on model performance.
 使用likelihood去比较单变量和空变量
 ```{r}
@@ -1011,10 +1015,10 @@ logLikelihood <- function(ytrue, ypred, epsilon=1e-6) {
                           sum(ifelse(ytrue==positive_label, log(ypred+epsilon), log(1-ypred-epsilon)), na.rm=T)
 }
 # Compute the likelihood of the Null model on the Training model
-logNull <- logLikelihood(youtube_train[,target_column], sum(youtube_train[,target_column]==pos)/nrow(youtube_train))
+logNull <- logLikelihood(youtube_train[,target_column], sum(youtube_train[,target_column]==positive_label)/nrow(youtube_train))
 cat(logNull)
 ```
-#### 4.3.2.1 The likelihood of categorical variables
+#### 4.4.1.1 Deviance of Categorical Variables
 ```{r}
 # By adjusting the value of minDrop, we can control how strictly the variables are selected
 selCatVars <- c()
@@ -1030,10 +1034,11 @@ for (v in categorical_independent_variables) {
 }
 
 ```
-#### 4.3.2.2 The likelihood of numeric variables
+The deviance values of the two categorical variables are larger than the null model, indicating that these two features are suitable for model prediction under this method.
+#### 4.3.2.2 Deviance of Numeric Variables
 ```{r warning=FALSE}
 selNumVars <- c()
-minDrop <- 10 # 可能还需要调整值的大小
+minDrop <- 0 # 可能还需要调整值的大小
 for (v in numeric_independent_variables) {
   pi <- paste(v, sep='')
   epsilon <- 1e-6  # Small constant to avoid division by zero
@@ -1044,14 +1049,158 @@ for (v in numeric_independent_variables) {
  }
 }
 ```
+Set the value of minDrop to 0 and traverse all numerical variables. There are originally 12 numerical variables, but only 9 have results. This means that in this selection method, only the deviance values of these 9 variables are better than the null model. Large, you can choose to do model predictions.
+### 4.4.2 Using Logistic Regression
+Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
+Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
+The independent variable is binary which 1 represent high income level and 0 represents low income level. We need to choose the binary logistic regression.
+```{r warning=FALSE}
+selVars <- c("channel_type","category","subscribers","video_views","uploads","created_year","subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate" )
+deviance_formula <- paste(target_column, '>0 ~ ', paste(selVars, collapse=' + '), sep='')
+cat(deviance_formula)
+cat("Feature dimension = ", length(selVars))
+gmodel <- glm(as.formula(deviance_formula), data=youtube_train, family=binomial(link='logit'))
+summary(gmodel)
+```
+According to the result of the gmodel, the smaller the p value, the stronger the correlation between the feature and the dependent variable.We can find the result of 'age' feature is NA, which has the possibility of a strong correlation with other features. This situation is more complex to analyze, so we decided not to use this feature.
+Combining the analysis of likelihood and logistic regression, we finally selected the features that are strongly correlated with the independent variable earning_class: subscribers, subscribers_engagement, and urban_rate to build prediction model.
+## 4.5 Descision Tree Model
+### 4.5.1 Build Descision Tree Model
+#### 4.5.1.1 Build Descision Tree Model for all features
+```{r build decision tree model,fig.width=15,fig.height=20}
+library(rpart)
+library(rpart.plot)
+(formula_Var1 <- paste(target_column,'> 0 ~ ', paste(c(categorical_independent_variables,numeric_independent_variables), collapse=' + '), sep=''))
+tree_model_all <- rpart(formula_Var1, data=youtube_train)
 
+summary(tree_model_all)
 
+# 可视化决策树
+rpart.plot(tree_model_all)
 
+```
+Calculate the Model's AUC Scores
+```{r}
+tmodel_all_train_auc <- AUC_calculator(predict(tree_model_all, newdata=youtube_train), youtube_train[,target_column])
+cat('The AUC score on the training set is',tmodel_all_train_auc, "\n")
 
+#test set AUC score
+tmodel_all_test_auc <- AUC_calculator(predict(tree_model_all, newdata=youtube_test), youtube_test[,target_column])
+cat('The AUC score on the testing set is',tmodel_all_test_auc)
+```
 
+#### 4.5.1.2 Build Descision Tree Model for predition features
+```{r build decision tree model,fig.width=15,fig.height=8}
+library(rpart)
+library(rpart.plot)
+(formula_Var2 <- paste(target_column,'> 0 ~ ', paste(c('subscribers', 'subs_engagement','urban_rate'), collapse=' + '), sep=''))
+tree_model_pre <- rpart(formula_Var2, data=youtube_train)
 
+summary(tree_model_pre)
 
+# 可视化决策树
+rpart.plot(tree_model_pre)
 
+```
+Calculate the Model's AUC Scores
+```{r}
+# train set AUC score 
+tmodel_pre_train_auc <- AUC_calculator(predict(tree_model_pre, newdata=youtube_train), youtube_train[,target_column])
+cat('The AUC score on the training set is',tmodel_pre_train_auc, "\n")
+
+#test set AUC score
+tmodel_pre_test_auc <- AUC_calculator(predict(tree_model_pre, newdata=youtube_test), youtube_test[,target_column])
+cat('The AUC score on the testing set is',tmodel_pre_test_auc)
+```
+
+### 4.5.2 Performance Measures
+#### 4.5.2.1 Calculate the Model's accuracy, precision, recall, and f1 score
+Use different evaluation methods to evaluate the representation of the decision tree model
+```{r}
+# ytrue should be a vector containing 1s (or TRUE) and 0s (or FALSE);
+# ypred should be a vector containing the predicted probability values for the target class.
+# Both ytrue and ypred should have the same length.
+performanceMeasures <- function(ytrue, ypred, model.name = "model", threshold=0.5) {
+      # compute the normalised deviance
+      dev.norm <- -2 * logLikelihood(ytrue, ypred)/length(ypred)
+      # compute the confusion matrix
+      confmatrix <- table(actual = ytrue, predicted = ypred >= threshold)
+      accuracy <- sum(diag(confmatrix)) / sum(confmatrix)
+      precision <- confmatrix[2, 2] / sum(confmatrix[, 2])
+      recall <- confmatrix[2, 2] / sum(confmatrix[2, ])
+      f1 <- 2 * precision * recall / (precision + recall)
+      data.frame(model = model.name, precision = precision, recall = recall, f1 = f1, dev.norm = dev.norm)
+}
+
+# pander formating
+panderOpt <- function(){
+    library(pander)
+    # setting up Pander Options
+    panderOptions("plain.ascii", TRUE)
+    panderOptions("keep.trailing.zeros", TRUE)
+    panderOptions("table.style", "simple")
+}
+
+# Prettier Performance Table Function
+pretty_perf_table <- function(model, xtrain, ytrain,
+xtest, ytest, threshold=0.5) {
+    # Option setting for Pander
+    panderOpt()
+    perf_justify <- "lrrrr"
+    
+    # call the predict() function to do the predictions
+    pred_train <- predict(model, newdata=xtrain)
+    pred_test <- predict(model, newdata=xtest)
+    
+    # comparing performance on training vs. test
+    trainperf_df <- performanceMeasures(
+    ytrain, pred_train, model.name="training", threshold=threshold)
+    testperf_df <- performanceMeasures(
+    ytest, pred_test, model.name="test", threshold=threshold)
+    
+    # combine the two performance data frames using rbind()
+    perftable <- rbind(trainperf_df, testperf_df)
+    pandoc.table(perftable, justify = perf_justify)
+}
+```
+print the performance table
+分析第一个决策树模型
+```{r}
+pretty_perf_table(tree_model_all,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
+```
+#### 4.5.2.2 plot the AUC
+build a function to generate the ROC plot
+```{r}
+library(ROCit)
+plot_roc <- function(predcol1, outcol1, predcol2, outcol2){
+    roc_1 <- rocit(score=predcol1, class=outcol1==positive_label)
+    roc_2 <- rocit(score=predcol2, class=outcol2==positive_label)
+    plot(roc_1, col = c("blue","green"), lwd = 3,
+    legend = FALSE,YIndex = FALSE, values = TRUE, asp=1)
+    lines(roc_2$TPR ~ roc_2$FPR, lwd = 3,
+    col = c("red","green"), asp=1)
+    legend("bottomright", col = c("blue","red", "green"),
+    c("Test Data", "Training Data", "Null Model"), lwd = 2)
+}
+pred_test_roc_tmodel_all <- predict(tree_model_all, newdata=youtube_test)
+pred_train_roc_tmodel_all <- predict(tree_model_all, newdata=youtube_train)
+plot_roc(pred_test_roc_tmodel_all, youtube_test[[target_column]],
+         pred_train_roc_tmodel_all, youtube_train[[target_column]])
+```
+这个图像有点过度拟合，再重新试一下第二个模型，看看什么情况
+print the performance table
+```{r}
+pretty_perf_table(tree_model_pre,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
+```
+再看一下ROC图像
+```{r}
+pred_test_roc_tmodel_pre <- predict(tree_model_pre, newdata=youtube_test)
+pred_train_roc_tmodel_pre <- predict(tree_model_pre, newdata=youtube_train)
+plot_roc(pred_test_roc_tmodel_pre, youtube_test[[target_column]],
+         pred_train_roc_tmodel_pre, youtube_train[[target_column]])
+```
+## 4.6 Naïve Bayes
+### 4.6.1
 
 references.bib
 title: 
@@ -1141,6 +1290,14 @@ volume = {26},
 number = {2},
 pages = {105-109},
 }
+
+@Book{Hastie2009,
+  author = {Trevor Hastie and Robert Tibshirani and Jerome Friedman},
+  title = {The Elements of Statistical Learning: Data Mining, Inference, and Prediction},
+  publisher = {Springer},
+  year = {2009},
+}
+
 
 1.Introduction
 2.Setup
