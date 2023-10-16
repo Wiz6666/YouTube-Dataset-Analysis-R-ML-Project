@@ -85,6 +85,8 @@ library(pROC)
 library(glmnet)
 library(car)
 library(nnet)
+library(rpart)
+library(rpart.plot)
 ```
 
 
@@ -1064,57 +1066,9 @@ summary(gmodel)
 ```
 According to the result of the gmodel, the smaller the p value, the stronger the correlation between the feature and the dependent variable.We can find the result of 'age' feature is NA, which has the possibility of a strong correlation with other features. This situation is more complex to analyze, so we decided not to use this feature.
 Combining the analysis of likelihood and logistic regression, we finally selected the features that are strongly correlated with the independent variable earning_class: subscribers, subscribers_engagement, and urban_rate to build prediction model.
-## 4.5 Descision Tree Model
-### 4.5.1 Build Descision Tree Model
-#### 4.5.1.1 Build Descision Tree Model for all features
-```{r build decision tree model,fig.width=15,fig.height=20}
-library(rpart)
-library(rpart.plot)
-(formula_Var1 <- paste(target_column,'> 0 ~ ', paste(c(categorical_independent_variables,numeric_independent_variables), collapse=' + '), sep=''))
-tree_model_all <- rpart(formula_Var1, data=youtube_train)
-
-summary(tree_model_all)
-
-# 可视化决策树
-rpart.plot(tree_model_all)
-
-```
-Calculate the Model's AUC Scores
-```{r}
-tmodel_all_train_auc <- AUC_calculator(predict(tree_model_all, newdata=youtube_train), youtube_train[,target_column])
-cat('The AUC score on the training set is',tmodel_all_train_auc, "\n")
-
-#test set AUC score
-tmodel_all_test_auc <- AUC_calculator(predict(tree_model_all, newdata=youtube_test), youtube_test[,target_column])
-cat('The AUC score on the testing set is',tmodel_all_test_auc)
-```
-
-#### 4.5.1.2 Build Descision Tree Model for predition features
-```{r build decision tree model,fig.width=15,fig.height=8}
-library(rpart)
-library(rpart.plot)
-(formula_Var2 <- paste(target_column,'> 0 ~ ', paste(c('subscribers', 'subs_engagement','urban_rate'), collapse=' + '), sep=''))
-tree_model_pre <- rpart(formula_Var2, data=youtube_train)
-
-summary(tree_model_pre)
-
-# 可视化决策树
-rpart.plot(tree_model_pre)
-
-```
-Calculate the Model's AUC Scores
-```{r}
-# train set AUC score 
-tmodel_pre_train_auc <- AUC_calculator(predict(tree_model_pre, newdata=youtube_train), youtube_train[,target_column])
-cat('The AUC score on the training set is',tmodel_pre_train_auc, "\n")
-
-#test set AUC score
-tmodel_pre_test_auc <- AUC_calculator(predict(tree_model_pre, newdata=youtube_test), youtube_test[,target_column])
-cat('The AUC score on the testing set is',tmodel_pre_test_auc)
-```
-
-### 4.5.2 Performance Measures
-#### 4.5.2.1 Calculate the Model's accuracy, precision, recall, and f1 score
+## 4.5 Descision Tree Classifier
+### 4.5.1 Build the model performacne measure function and plotting ROC function
+#### 4.5.1.1 Calculate the Model's accuracy, precision, recall, and f1 score
 Use different evaluation methods to evaluate the representation of the decision tree model
 ```{r}
 # ytrue should be a vector containing 1s (or TRUE) and 0s (or FALSE);
@@ -1163,12 +1117,7 @@ xtest, ytest, threshold=0.5) {
     pandoc.table(perftable, justify = perf_justify)
 }
 ```
-print the performance table
-分析第一个决策树模型
-```{r}
-pretty_perf_table(tree_model_all,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
-```
-#### 4.5.2.2 plot the AUC
+#### 4.5.1.2 Plot the ROC
 build a function to generate the ROC plot
 ```{r}
 library(ROCit)
@@ -1182,25 +1131,190 @@ plot_roc <- function(predcol1, outcol1, predcol2, outcol2){
     legend("bottomright", col = c("blue","red", "green"),
     c("Test Data", "Training Data", "Null Model"), lwd = 2)
 }
+```
+
+### 4.5.2 Build Descision Tree Model
+#### 4.5.2.1 Build Descision Tree Model for all features
+首先需要建立完整的决策树模型，然后根据这个完整的决策树模型进行剪枝，根据剪枝前后的性能变化，决定使用哪些节点进行剪枝以获得更好的泛化性能。
+##### a. Build the model
+```{r build decision tree model,fig.width=15,fig.height=20}
+formula_Var1 <- paste(target_column,'> 0 ~ ',paste(c(categorical_independent_variables,numeric_independent_variables), collapse=' + '), sep='')
+tree_model_all <- rpart(formula_Var1, data=youtube_train)
+
+summary(tree_model_all)
+
+# 可视化决策树
+rpart.plot(tree_model_all)
+
+```
+##### b. Calculate this Model's AUC Scores
+```{r}
+tmodel_all_train_auc <- AUC_calculator(predict(tree_model_all, newdata=youtube_train), youtube_train[,target_column])
+cat('This model\'s AUC score on the training set is',tmodel_all_train_auc, "\n")
+
+#test set AUC score
+tmodel_all_test_auc <- AUC_calculator(predict(tree_model_all, newdata=youtube_test), youtube_test[,target_column])
+cat('This model\'s AUC score on the testing set is',tmodel_all_test_auc)
+```
+##### c. Print the performance table
+分析第一个决策树模型
+```{r}
+pretty_perf_table(tree_model_all,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
+```
+##### d. Print the ROC plot
+```{r}
 pred_test_roc_tmodel_all <- predict(tree_model_all, newdata=youtube_test)
 pred_train_roc_tmodel_all <- predict(tree_model_all, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel_all, youtube_test[[target_column]],
          pred_train_roc_tmodel_all, youtube_train[[target_column]])
 ```
-这个图像有点过度拟合，再重新试一下第二个模型，看看什么情况
-print the performance table
+#### 4.5.2.2 Build Descision Tree Model for all numerical features
+##### a. Build the model
+这个图像有点过度拟合，有可能的原因是feature里面的categorical variable里面的层次太多，导致过度拟合，尝试只使用feature里面所有的numerical variable新建model。
 ```{r}
-pretty_perf_table(tree_model_pre,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
+library(rpart)
+library(rpart.plot)
+(formula_Var1 <- paste(target_column,'> 0 ~ ', paste(c(numeric_independent_variables), collapse=' + '), sep=''))
+tree_model_all_num <- rpart(formula_Var1, data=youtube_train)
+
+summary(tree_model_all_num)
+
+# 可视化决策树
+rpart.plot(tree_model_all_num)
 ```
-再看一下ROC图像
+##### b. Calculate this Model's AUC Scores
+先算一下AUC得分
+```{r}
+tmodel_all_num_train_auc <- AUC_calculator(predict(tree_model_all_num, newdata=youtube_train), youtube_train[,target_column])
+cat('This model\'s AUC score on the training set is',tmodel_all_num_train_auc, "\n")
+
+#test set AUC score
+tmodel_all_num_test_auc <- AUC_calculator(predict(tree_model_all_num, newdata=youtube_test), youtube_test[,target_column])
+cat('This model\'s AUC score on the testing set is',tmodel_all_num_test_auc)
+```
+
+##### c. Print the performance table
+```{r}
+pretty_perf_table(tree_model_all_num,youtube_train[c(numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(numeric_independent_variables)],youtube_test[,target_column] == positive_label)
+```
+##### d. Print the ROC plot
+```{r}
+pred_test_roc_tmodel_all_num <- predict(tree_model_pre, newdata=youtube_test)
+pred_train_roc_tmodel_all_num <- predict(tree_model_pre, newdata=youtube_train)
+plot_roc(pred_test_roc_tmodel_all_num, youtube_test[[target_column]],
+         pred_train_roc_tmodel_all_num, youtube_train[[target_column]])
+```
+
+#### 4.5.2.3 Build Descision Tree Model for predition features
+##### a. Build the model
+```{r build decision tree model,fig.width=15,fig.height=8}
+formula_Var2 <- paste(target_column,'> 0 ~ ', paste(c('subscribers', 'subs_engagement','urban_rate'), collapse=' + '), sep='')
+tree_model_pre <- rpart(formula_Var2, data=youtube_train)
+
+summary(tree_model_pre)
+
+# 可视化决策树
+rpart.plot(tree_model_pre)
+
+```
+##### b. Calculate this Model's AUC Scores
+```{r}
+# train set AUC score 
+tmodel_pre_train_auc <- AUC_calculator(predict(tree_model_pre, newdata=youtube_train), youtube_train[,target_column])
+cat('This model\'s AUC score on the training set is',tmodel_pre_train_auc, "\n")
+
+#test set AUC score
+tmodel_pre_test_auc <- AUC_calculator(predict(tree_model_pre, newdata=youtube_test), youtube_test[,target_column])
+cat('This model\'s AUC score on the testing set is',tmodel_pre_test_auc)
+```
+##### c. Print the performance table
+```{r}
+pretty_perf_table(tree_model_pre,youtube_train[c('subscribers', 'subs_engagement','urban_rate')],youtube_train[,target_column] == positive_label,youtube_test[c('subscribers', 'subs_engagement','urban_rate')],youtube_test[,target_column] == positive_label)
+```
+##### d. Print the ROC plot
 ```{r}
 pred_test_roc_tmodel_pre <- predict(tree_model_pre, newdata=youtube_test)
 pred_train_roc_tmodel_pre <- predict(tree_model_pre, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel_pre, youtube_test[[target_column]],
          pred_train_roc_tmodel_pre, youtube_train[[target_column]])
 ```
-## 4.6 Naïve Bayes
-### 4.6.1
+
+### 4.5.3 Overfitting problem(这个可能运行有问题，要跳过这个)
+Because the AUC of the decision tree model for all features is too high, we considered there might have a overfitting problem. Using learning curve to measure whether the model is overfitting or not.
+```{r}
+library(caret)
+library(ggplot2)
+
+# 定义要使用的分类算法（例如决策树）
+model_name <- "rpart"
+train_control <- trainControl(method = "cv", number = 5)  # 5折交叉验证
+
+# 定义不同的训练集大小
+train_sizes <- seq(0.1, 1.0, by = 0.1)
+
+# 创建一个数据框来存储结果
+learning_curve_data <- data.frame(TrainSize = numeric(0), Accuracy = numeric(0))
+
+# 遍历不同的训练集大小
+for (size in train_sizes) {
+  # 从完整的youtube_train数据中创建一个子集
+  subset_data <- createDataPartition(youtube_train$earning_class, p = size, list = FALSE)
+  sample_data <- youtube_train[subset_data, ]
+  
+  # 使用交叉验证来评估模型性能
+  results <- train(earning_class ~ ., data = sample_data, method = model_name, trControl = train_control)
+  
+  # 存储交叉验证的准确度
+  accuracy <- results$results$Accuracy[1]
+  
+  # 存储结果
+  learning_curve_data <- rbind(learning_curve_data, data.frame(TrainSize = size, Accuracy = accuracy))
+}
+
+# 绘制学习曲线
+ggplot(learning_curve_data, aes(x = TrainSize, y = Accuracy)) +
+  geom_line() +
+  labs(title = "Learning Curve", x = "Training Data Size", y = "Accuracy") +
+  theme_minimal()
+
+
+```
+## 4.6 Naïve Bayes Classifier
+### 4.6.1 Build the model
+直接用三个预测feature来建模
+```{r}
+nb_model <- naiveBayes(earning_class ~ subscribers + subs_engagement + urban_rate, data = youtube_train)
+summary(nb_model)
+```
+### 4.6.2 Doing prediction
+```{r}
+predictions_nb <- predict(nb_model, newdata = youtube_train)
+```
+### 4.6.3 Confusion Matrix
+```{r}
+confusion_matrix_nb <- table(predictions_nb, youtube_train$earning_class)
+```
+### 4.6.4 AUC value
+```{r}
+nbmodel_pred_train_auc <- AUC_calculator(predict(nb_model, newdata=youtube_train), youtube_train[,target_column])
+cat('This model\'s AUC score on the training set is',nbmodel_pred_train_auc, "\n")
+
+#test set AUC score
+nbmodel_pred_test_auc <- AUC_calculator(predict(nb_model, newdata=youtube_test), youtube_test[,target_column])
+cat('This model\'s AUC score on the testing set is',nbmodel_pred_test_auc)
+```
+### 4.6.5 print the performance table
+```{r}
+pretty_perf_table(nb_model,youtube_train[c('subscribers', 'subs_engagement','urban_rate')],youtube_train[,target_column] == positive_label,youtube_test[c('subscribers', 'subs_engagement','urban_rate')],youtube_test[,target_column] == positive_label)
+```
+### 4.6.6 Plot the ROC
+```{r}
+pred_test_roc_nbmodel <- predict(nb_model, newdata=youtube_test)
+pred_train_roc_nbmodel <- predict(nb_model, newdata=youtube_train)
+plot_roc(pred_test_roc_nbmodel, youtube_test[[target_column]],
+         pred_train_roc_nbmodel, youtube_train[[target_column]])
+```
+
 
 references.bib
 title: 
