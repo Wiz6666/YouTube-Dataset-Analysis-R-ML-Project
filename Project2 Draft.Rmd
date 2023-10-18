@@ -516,9 +516,9 @@ youtube_data$urban_rate <- youtube_data$urban_population/youtube_data$population
 ```
 
 #### 3.1.8.6 Years of experience column
-  2023 - created_year. The number of years since the channel was created, which might relate to income and popularity.
+  2022 - created_year. The number of years since the channel was created, which might relate to income and popularity.
 ```{r Years of experience}
-youtube_data$age <- 2023-youtube_data$created_year
+youtube_data$age <- 2022-youtube_data$created_year
 ```
 
 #### 3.1.8.7 Education population ratio column
@@ -578,31 +578,136 @@ All the features and category variables have been prepared in 3.1.8 Section.
 Data Integration：
   We would use the World Bank GDP data from the Project2 prject description, which includes GDP per capita for each country for each year. Based on the country field merge the GDP for 2022 year. We decided to use 2022 year GDP for each country as a reference. Because our Youtuber data is for 2023, 2022 is the closest year to 2023 in the GDP data, which ensures that real-word economic fluctuations will have the least impact because the years are closest.
   After manually check, we realized that the first 4 rows of the GDP csv file are not data columns, so we skipped the first 4 rows using the skip parameter. When loading, our GPD data would only load up to the 2005 GDP and could not load the rest right side columns. So we solved the problem by using ChatGPT4 to learn how to select specific columns using the readr package.
-```{r gdp data path,echo=FALSE}
+```{r gdp data path, echo=FALSE, message=FALSE, warning=FALSE}
 gdp_data_path <- "API_NY.GDP.PCAP.CD_DS2_en_csv_v2_5871588.csv"
-# 使用 cols_only 函数为 read_csv 指定所需的列
-desired_columns <- cols_only(`Country Name` = col_character(), `2022` = col_double())
 
-gdp_data <- read_csv(gdp_data_path, skip = 4, col_types = desired_columns)
-rm(desired_columns)
+gdp_data <- read_csv(gdp_data_path, skip = 4)%>%
+  select(-c("Country Code", "Indicator Name", "Indicator Code","...68"))
+
+colnames(gdp_data)[colnames(gdp_data) == "Country.Name"] <- "Country.Name"
+
+gdp_data <- as.data.frame(gdp_data)
 
 gdp_data <- gdp_data %>%
-  rename(gdp_per_capita = "2022")
+  mutate(gdp_per_capita = `2022`)
 ```
+Before merge there are some Country.Names that different from the Country.Name in youtube dataset.Change them to the same countries
+```{r}
+(diff_countries = setdiff(youtube_data$country, gdp_data$Country.Name))
+gdp_data$Country.Name[gdp_data$Country.Name == "Egypt, Arab Rep."] <- "Egypt"
+gdp_data$Country.Name[gdp_data$Country.Name == "Korea, Rep."] <- "South Korea"
+gdp_data$Country.Name[gdp_data$Country.Name == "Russian Federation"] <- "Russia"
+gdp_data$Country.Name[gdp_data$Country.Name == "Turkiye"] <- "Turkey"
+gdp_data$Country.Name[gdp_data$Country.Name == "Venezuela, RB"] <- "Venezuela"
+```
+change all the GDP NA into that year of average GDP value
+```{r}
+replace_na_with_global_median <- function(data) {
+  years <- colnames(data)[-1]  # 获取年份列名
+  global_median_gdp <- numeric(length(years))
+  
+    # 将 GDP 列转换为数值数据类型
+  for (i in 2:ncol(data)) {
+    data[, i] <- as.numeric(data[, i])
+  }
+  
+  # 计算每年的全球中位数GDP
+  for (i in 1:length(years)) {
+    global_median_gdp[i] <- median(data[!is.na(data[, years[i]]), years[i]], na.rm = TRUE)
+  }
+  
+  # 遍历每一年的每一个国家的GDP值，使用 apply 函数
+  data[, years] <- t(apply(data[, years], 1, function(row) {
+    is_na <- is.na(row)
+    row[is_na] <- global_median_gdp[is_na]
+    return(row)
+  }))
+  
+
+  
+  return(data)
+}
+
+# 使用函数替代NA值
+gdp_data <- replace_na_with_global_median(gdp_data)
+
+
+```
+
+ Calculate GDP value based on Youtube channel age
+```{r}
+# Divide the per capital GDP value in those years of channel age by the channel age in these years
+calculate_channel_age_adjusted_income <- function(youtube_data, gdp_data) {
+  # 初始化一个空的向量来存储结果
+  adjusted_income <- numeric(nrow(youtube_data))
+  
+  # 遍历 youtube_data 的每一行
+  for (i in 1:nrow(youtube_data)) {
+    # 获取当前行的国家和创建年份
+    country <- as.character(youtube_data$country[i])
+    created_year <- as.numeric(as.character(youtube_data$created_year[i]))  # 将年份转换为数字
+    
+    # 在 gdp_data 中查找相应的国家行
+    gdp_row <- gdp_data[gdp_data$`Country.Name` == country, ]
+    created_year_column <- which(names(gdp_row) == created_year)
+    
+    if (nrow(gdp_row) == 0) {
+      # 如果没有找到匹配的国家数据，则将结果设为 NA
+      adjusted_income[i] <- NA
+    } else {
+      # 找到匹配的国家数据后，根据创建年份找到对应年份范围的 GDP 数据
+      gdp_values <- as.numeric(gdp_row[ , (created_year_column + 1):64])
+      
+      # 计算数值1
+      value1 <- sum(gdp_values, na.rm = TRUE)
+      
+      # 计算数值2
+      value2 <- 1 / youtube_data$age[i]
+      
+      # 计算最终结果
+      adjusted_income[i] <- youtube_data$yearly_earning[i] / value2
+    }
+  }
+  
+  # 将结果存储到 youtube_data 的 channel_age_adjusted_income 列中
+  youtube_data$channel_age_adjusted_income <- adjusted_income
+  
+  return(youtube_data)
+}
+
+# 使用函数计算和更新 adjusted income
+youtube_data <- calculate_channel_age_adjusted_income(youtube_data, gdp_data)
+
+```
+handle NAs in the channel_age_adjusted_income column
+```{r}
+# 计算中位数
+median_value <- median(youtube_data$channel_age_adjusted_income, na.rm = TRUE)
+
+# 遍历 channel_age_adjusted_income 列
+for (i in 1:length(youtube_data$channel_age_adjusted_income)) {
+  if (is.na(youtube_data$channel_age_adjusted_income[i])) {
+    youtube_data$channel_age_adjusted_income[i] <- median_value
+  }
+}
+```
+
 Use merge command here.
 ```{r merge gdp data}
-gdp_2022 <- gdp_data[,c("Country Name","gdp_per_capita")]
+gdp_2022 <- gdp_data[,c("Country.Name","gdp_per_capita")]
 
-youtube_data <- merge(youtube_data,gdp_2022, by.x = "country",by.y = "Country Name", all.x = TRUE)
+youtube_data <- merge(youtube_data,gdp_2022, by.x = "country",by.y = "Country.Name", all.x = TRUE)
 rm(gdp_2022)
 ```
 
-  If the country name is "Unknown", then we would use the medium of youtube_data$gdp_per_capita to swap it, it won't affect our data too much, and also, this is the same handling method that we used before in 3.1.3 Handle Missing value. Consistency is ensured here.
+  If the Country.Name is "Unknown", then we would use the medium of youtube_data$gdp_per_capita to swap it, it won't affect our data too much, and also, this is the same handling method that we used before in 3.1.3 Handle Missing value. Consistency is ensured here.
 ```{r handle unknown country}
 median_gdp <- median(youtube_data$gdp_per_capita,na.rm = TRUE)
 youtube_data$gdp_per_capita[is.na(youtube_data$gdp_per_capita)] <- median_gdp
 rm(median_gdp)
 ```
+
+
 
 
 Normalize Youtuber earning： 
@@ -687,21 +792,23 @@ print(earning_threshold)
 ```
 It means if a Youtuber's yearly earning is 6.2 times larger than GDP per capita then this Youtuber is a high earning Youtuber.
 
+### 3.2.2 Tranform categrical variables
+Because the first time we built the decision tree model, the model had too many nodes, resulting in overfitting. This is the second time to re-establish the model, so we need to modify the categorical variables and change the categorical variables into factors with fewer levels. This may enhance the generalization ability of the model.
 
-### 3.2.2 Remove unrelevant columns
+### 3.2.3 Remove unrelevant columns
   According to the instructions of project 2. Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
 ```{r Remove unrelevant colunmns}
 youtube_data <- youtube_data[
   c(
     "normalized_earning",
     "subscribers","video_views","uploads","channel_type","created_year","category",
-    "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate"
+    "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income"
     )
   ]
 ```
 
 
-### 3.2.3 Feature Engineering
+### 3.2.4 Feature Engineering
 We have already created required features in 3.1.8 Section.
   "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate"
   Here, we would use 6.2 times as threshold, build a new binary column, if Youtuber earning is larger than 6.2 return 1, else 0.
@@ -716,7 +823,7 @@ names(youtube_data)
 ```
 
 
-### 3.2.4 Training and Testing dataset 
+### 3.2.5 Training and Testing dataset 
   According to the different income levels, we need to split the youtube_data into training data and testing data. We do a 20/80 split to form the training and test sets.
   After google many articles and learn caret pacakge by ourselves, we decide to use "creatDataPartition" function in caret package, it ensures that the distribution of the target variable is taken into account when partitioning the data.[@Kuhn2019]
 ```{r}
