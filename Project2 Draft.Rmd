@@ -456,7 +456,9 @@ rm(factor_columns)
 Backup the raw_data into another name youtube_data
 ```{r Backup Data}
 youtube_data <- raw_data
+clustering_data <- raw_data 
 ```
+
 
 
 ### 3.1.8 Add new columns
