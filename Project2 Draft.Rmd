@@ -1482,7 +1482,13 @@ pred_train_roc_nbmodel <- predict(nb_model, newdata=youtube_train)
 plot_roc(pred_test_roc_nbmodel, youtube_test[[target_column]],
          pred_train_roc_nbmodel, youtube_train[[target_column]])
 ```
-
+# Part 5 Cluster
+### 5.1 Backup the processed data 
+Backup the raw_data into another name youtube_data
+```{r Backup Data}
+youtube_data <- raw_data
+clustering_data <- raw_data 
+```
 
 
 
