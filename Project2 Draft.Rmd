@@ -794,6 +794,22 @@ It means if a Youtuber's yearly earning is 6.2 times larger than GDP per capita 
 
 ### 3.2.2 Tranform categrical variables
 Because the first time we built the decision tree model, the model had too many nodes, resulting in overfitting. This is the second time to re-establish the model, so we need to modify the categorical variables and change the categorical variables into factors with fewer levels. This may enhance the generalization ability of the model.
+First, Check the number of occurrences of each country
+```{r}
+print(table(youtube_data$country))
+```
+Turn country variables into factors and then divide them into developed countries, developing countries, and unknown levels.
+```{r}
+youtube_data$country_status <- factor(ifelse(youtube_data$country %in% c("Japan","Germany","Canada","United States", "United Kingdom","Denmark", "Australia","China","South Korea", "Switzerland", "Sweden", "Finland", "France", "Norway", "Singapore", "Netherlands", "Italy", "Brazil", "Belgium", "Greece", "Iceland", "Luxembourg", "Spain"), "Developed", ifelse(youtube_data$country == "Unknown", "Unknown", "Developing")))
+```
+Second, There are too many levels of channel types, which may also lead to overfitting, so the channel occurrence number is less than or equal to 20 and unknown are classified into the others category.
+```{r}
+print(table(youtube_data$channel_type))
+print(table(youtube_data$channel_type) < 20)
+```
+```{r}
+youtube_data$channel_type_status <- factor(ifelse(youtube_data$channel_type %in% c("Animals","Autos","Nonprofit","Sports","Tech","Unknown"),"Others",as.character(youtube_data$channel_type)))
+```
 
 ### 3.2.3 Remove unrelevant columns
   According to the instructions of project 2. Columns that have a unique value for each row should be discarded, e.g., rank, Youtuber, etc.List all the columns that have a unique values for each row and then delete those columns.
@@ -801,8 +817,8 @@ Because the first time we built the decision tree model, the model had too many 
 youtube_data <- youtube_data[
   c(
     "normalized_earning",
-    "subscribers","video_views","uploads","channel_type","created_year","category",
-    "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income"
+    "subscribers","video_views","uploads","channel_type_status","created_year","category",
+    "subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income","country_status"
     )
   ]
 ```
@@ -861,7 +877,7 @@ categorical_independent_variables <- independent_variables[sapply(youtube_data[,
 
 ## 4.1 Dependent Variable & Independent Variable
 Dependent Variable: earning_class
-Independent varibale: "subscribers","video_views","uploads","channel_type","created_year","category","subs_engagement","uploads_frequencey","average_views_per_video"     "urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","earning_class"   
+Independent varibale: "subscribers","video_views","uploads","channel_type_status","created_year","category","subs_engagement","uploads_frequencey","average_views_per_video"     "urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","earning_class","channel_age_adjusted_income","country_status"   
 
 
 
@@ -1114,7 +1130,7 @@ cat("Null Model AUC:", null_model_auc, "\n")
 
 ```
 ## 4.4 Select suitable single variable
-### 4.4.1 Using Log likelihood and deviance
+### 4.4.1 Likelihood and deviance
 According to the knowledge of lectures, If the AUC value of a single variable model is close to or lower than the AUC value of the null model, it means that the single variable model may not provide enough information for predicting the target variable. In this case, using this single variable model may not have a significant impact on model performance.
 使用likelihood去比较单变量和空变量
 ```{r}
@@ -1159,6 +1175,51 @@ for (v in numeric_independent_variables) {
 }
 ```
 Set the value of minDrop to 0 and traverse all numerical variables. There are originally 12 numerical variables, but only 9 have results. This means that in this selection method, only the deviance values of these 9 variables are better than the null model. Large, you can choose to do model predictions.
+### 4.4.2 Chi-Square Test
+```{r}
+analyze_features <- function(data, target_column, categorical_features, numeric_features) {
+  results <- list()
+  
+  # 分析分类特征
+  for (feature in categorical_features) {
+    cross_table <- table(data[, feature], data[, target_column])
+    chi_square <- chisq.test(cross_table)
+    
+    result <- list(
+      Feature = feature,
+      Analysis = "Chi-Square Test",
+      P_Value = chi_square$p.value
+    )
+    
+    results <- append(results, result)
+  }
+  
+  # 分析数值特征
+  for (feature in numeric_features) {
+    anova_result <- aov(data[, target_column] ~ data[, feature])
+    
+    result <- list(
+      Feature = feature,
+      Analysis = "ANOVA",
+      P_Value = summary(anova_result)[[1]][["Pr(>F)"]]
+    )
+    
+    results <- append(results, result)
+  }
+  
+  return(results)
+}
+
+# 使用函数分析特征
+results <- analyze_features(youtube_data, target_column, categorical_independent_variables, numeric_independent_variables)
+
+# 打印分析结果
+for (result in results) {
+  print(result)
+}
+
+```
+
 ### 4.4.2 Using Logistic Regression
 Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
 Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
@@ -1421,7 +1482,13 @@ pred_train_roc_nbmodel <- predict(nb_model, newdata=youtube_train)
 plot_roc(pred_test_roc_nbmodel, youtube_test[[target_column]],
          pred_train_roc_nbmodel, youtube_train[[target_column]])
 ```
-
+# Part 5 Cluster
+### 5.1 Backup the processed data 
+Backup the raw_data into another name youtube_data
+```{r Backup Data}
+youtube_data <- raw_data
+clustering_data <- raw_data 
+```
 
 references.bib
 title: 
