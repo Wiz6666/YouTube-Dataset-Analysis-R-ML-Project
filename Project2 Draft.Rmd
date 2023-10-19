@@ -584,7 +584,7 @@ gdp_data_path <- "API_NY.GDP.PCAP.CD_DS2_en_csv_v2_5871588.csv"
 gdp_data <- read_csv(gdp_data_path, skip = 4)%>%
   select(-c("Country Code", "Indicator Name", "Indicator Code","...68"))
 
-colnames(gdp_data)[colnames(gdp_data) == "Country.Name"] <- "Country.Name"
+colnames(gdp_data)[colnames(gdp_data) == "Country Name"] <- "Country.Name"
 
 gdp_data <- as.data.frame(gdp_data)
 
@@ -1065,10 +1065,10 @@ plot_roc <- function(predcol, outcol, colour_id=2, overlaid=FALSE) {
 1.使用Shiny展示ROC plot考虑到读者多样性，我们同时展示两个ROC图表以便读者需要对比不同的ROC
 ```{r}
 # Load Shiny app script
-source("app.R")
+#source("app.R")
 
 # Run Shiny app
-shinyApp(ui= ui_double_roc_plot, server = server_double_roc_plot)
+#shinyApp(ui= ui_double_roc_plot, server = server_double_roc_plot)
 
 ```
 
@@ -1176,7 +1176,7 @@ for (v in numeric_independent_variables) {
 ```
 Set the value of minDrop to 0 and traverse all numerical variables. There are originally 12 numerical variables, but only 9 have results. This means that in this selection method, only the deviance values of these 9 variables are better than the null model. Large, you can choose to do model predictions.
 ### 4.4.2 Chi-Square Test
-```{r}
+```{r warning=FALSE}
 analyze_features <- function(data, target_column, categorical_features, numeric_features) {
   results <- list()
   
@@ -1217,7 +1217,7 @@ results <- analyze_features(youtube_data, target_column, categorical_independent
 for (result in results) {
   print(result)
 }
-
+summary(results)
 ```
 
 ### 4.4.2 Using Logistic Regression
@@ -1225,7 +1225,7 @@ Using only one method for feature selection may have limitations, so use a combi
 Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
 The independent variable is binary which 1 represent high income level and 0 represents low income level. We need to choose the binary logistic regression.
 ```{r warning=FALSE}
-selVars <- c("channel_type","category","subscribers","video_views","uploads","created_year","subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate" )
+selVars <- c("channel_type_status","category","subscribers","video_views","uploads","created_year","subs_engagement","uploads_frequencey","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income","country_status" )
 deviance_formula <- paste(target_column, '>0 ~ ', paste(selVars, collapse=' + '), sep='')
 cat(deviance_formula)
 cat("Feature dimension = ", length(selVars))
@@ -1367,8 +1367,8 @@ pretty_perf_table(tree_model_all_num,youtube_train[c(numeric_independent_variabl
 ```
 ##### d. Print the ROC plot
 ```{r}
-pred_test_roc_tmodel_all_num <- predict(tree_model_pre, newdata=youtube_test)
-pred_train_roc_tmodel_all_num <- predict(tree_model_pre, newdata=youtube_train)
+pred_test_roc_tmodel_all_num <- predict(tree_model_all_num, newdata=youtube_test)
+pred_train_roc_tmodel_all_num <- predict(tree_model_all_num, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel_all_num, youtube_test[[target_column]],
          pred_train_roc_tmodel_all_num, youtube_train[[target_column]])
 ```
@@ -1407,46 +1407,7 @@ plot_roc(pred_test_roc_tmodel_pre, youtube_test[[target_column]],
          pred_train_roc_tmodel_pre, youtube_train[[target_column]])
 ```
 
-### 4.5.3 Overfitting problem(这个可能运行有问题，要跳过这个)
-Because the AUC of the decision tree model for all features is too high, we considered there might have a overfitting problem. Using learning curve to measure whether the model is overfitting or not.
-```{r}
-library(caret)
-library(ggplot2)
 
-# 定义要使用的分类算法（例如决策树）
-model_name <- "rpart"
-train_control <- trainControl(method = "cv", number = 5)  # 5折交叉验证
-
-# 定义不同的训练集大小
-train_sizes <- seq(0.1, 1.0, by = 0.1)
-
-# 创建一个数据框来存储结果
-learning_curve_data <- data.frame(TrainSize = numeric(0), Accuracy = numeric(0))
-
-# 遍历不同的训练集大小
-for (size in train_sizes) {
-  # 从完整的youtube_train数据中创建一个子集
-  subset_data <- createDataPartition(youtube_train$earning_class, p = size, list = FALSE)
-  sample_data <- youtube_train[subset_data, ]
-  
-  # 使用交叉验证来评估模型性能
-  results <- train(earning_class ~ ., data = sample_data, method = model_name, trControl = train_control)
-  
-  # 存储交叉验证的准确度
-  accuracy <- results$results$Accuracy[1]
-  
-  # 存储结果
-  learning_curve_data <- rbind(learning_curve_data, data.frame(TrainSize = size, Accuracy = accuracy))
-}
-
-# 绘制学习曲线
-ggplot(learning_curve_data, aes(x = TrainSize, y = Accuracy)) +
-  geom_line() +
-  labs(title = "Learning Curve", x = "Training Data Size", y = "Accuracy") +
-  theme_minimal()
-
-
-```
 ## 4.6 Naïve Bayes Classifier
 ### 4.6.1 Build the model
 直接用三个预测feature来建模
