@@ -456,6 +456,7 @@ rm(factor_columns)
 Backup the raw_data into another name youtube_data
 ```{r Backup Data}
 youtube_data <- raw_data
+clustering_data <- raw_data
 ```
 
 
@@ -1178,33 +1179,33 @@ Set the value of minDrop to 0 and traverse all numerical variables. There are or
 ### 4.4.2 Chi-Square Test
 ```{r warning=FALSE}
 analyze_features <- function(data, target_column, categorical_features, numeric_features) {
-  results <- list()
+  results <- data.frame(Feature = character(0), Analysis = character(0), P_Value = numeric(0))
   
   # 分析分类特征
   for (feature in categorical_features) {
     cross_table <- table(data[, feature], data[, target_column])
     chi_square <- chisq.test(cross_table)
     
-    result <- list(
+    result <- data.frame(
       Feature = feature,
       Analysis = "Chi-Square Test",
       P_Value = chi_square$p.value
     )
     
-    results <- append(results, result)
+    results <- rbind(results, result)
   }
   
   # 分析数值特征
   for (feature in numeric_features) {
     anova_result <- aov(data[, target_column] ~ data[, feature])
     
-    result <- list(
+    result <- data.frame(
       Feature = feature,
       Analysis = "ANOVA",
       P_Value = summary(anova_result)[[1]][["Pr(>F)"]]
     )
     
-    results <- append(results, result)
+    results <- rbind(results, result)
   }
   
   return(results)
@@ -1213,12 +1214,13 @@ analyze_features <- function(data, target_column, categorical_features, numeric_
 # 使用函数分析特征
 results <- analyze_features(youtube_data, target_column, categorical_independent_variables, numeric_independent_variables)
 
-# 打印分析结果
-for (result in results) {
-  print(result)
-}
-summary(results)
+# 打印整个结果
+print(results)
+
+
+  
 ```
+
 
 ### 4.4.2 Using Logistic Regression
 Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
@@ -1409,40 +1411,7 @@ plot_roc(pred_test_roc_tmodel_pre, youtube_test[[target_column]],
 
 
 ## 4.6 Naïve Bayes Classifier
-### 4.6.1 Build the model
-直接用三个预测feature来建模
-```{r}
-nb_model <- naiveBayes(earning_class ~ subscribers + subs_engagement + urban_rate, data = youtube_train)
-summary(nb_model)
-```
-### 4.6.2 Doing prediction
-```{r}
-predictions_nb <- predict(nb_model, newdata = youtube_train)
-```
-### 4.6.3 Confusion Matrix
-```{r}
-confusion_matrix_nb <- table(predictions_nb, youtube_train$earning_class)
-```
-### 4.6.4 AUC value
-```{r}
-nbmodel_pred_train_auc <- AUC_calculator(predict(nb_model, newdata=youtube_train), youtube_train[,target_column])
-cat('This model\'s AUC score on the training set is',nbmodel_pred_train_auc, "\n")
 
-#test set AUC score
-nbmodel_pred_test_auc <- AUC_calculator(predict(nb_model, newdata=youtube_test), youtube_test[,target_column])
-cat('This model\'s AUC score on the testing set is',nbmodel_pred_test_auc)
-```
-### 4.6.5 print the performance table
-```{r}
-pretty_perf_table(nb_model,youtube_train[c('subscribers', 'subs_engagement','urban_rate')],youtube_train[,target_column] == positive_label,youtube_test[c('subscribers', 'subs_engagement','urban_rate')],youtube_test[,target_column] == positive_label)
-```
-### 4.6.6 Plot the ROC
-```{r}
-pred_test_roc_nbmodel <- predict(nb_model, newdata=youtube_test)
-pred_train_roc_nbmodel <- predict(nb_model, newdata=youtube_train)
-plot_roc(pred_test_roc_nbmodel, youtube_test[[target_column]],
-         pred_train_roc_nbmodel, youtube_train[[target_column]])
-```
 # Part 5 Cluster
 ### 5.1 Backup the processed data 
 Backup the raw_data into another name youtube_data
