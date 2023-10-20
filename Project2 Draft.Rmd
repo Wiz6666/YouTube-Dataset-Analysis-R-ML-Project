@@ -1241,20 +1241,7 @@ feature combination 3
 feature_combine3 <- c("category","subscribers","created_year","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","channel_age_adjusted_income")
 ```
 
-### 4.4.2 Using Logistic Regression
-Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
-Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
-The independent variable is binary which 1 represent high income level and 0 represents low income level. We need to choose the binary logistic regression.
-```{r warning=FALSE}
-selVars <- c("channel_type_status","category","subscribers","video_views","uploads","created_year","subs_engagement","uploads_frequency","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income","country_status" )
-deviance_formula <- paste(target_column, '>0 ~ ', paste(selVars, collapse=' + '), sep='')
-cat(deviance_formula)
-cat("Feature dimension = ", length(selVars))
-gmodel <- glm(as.formula(deviance_formula), data=youtube_train, family=binomial(link='logit'))
-summary(gmodel)
-```
-According to the result of the gmodel, the smaller the p value, the stronger the correlation between the feature and the dependent variable.We can find the result of 'age' feature is NA, which has the possibility of a strong correlation with other features. This situation is more complex to analyze, so we decided not to use this feature.
-Combining the analysis of likelihood and logistic regression, we finally selected the features that are strongly correlated with the independent variable earning_class: subscribers, subscribers_engagement, and urban_rate to build prediction model.
+
 ## 4.5 Descision Tree Classifier
 ### 4.5.1 Build the model performacne measure function and plotting ROC function
 #### 4.5.1.1 Calculate the Model's accuracy, precision, recall, and f1 score
@@ -1407,7 +1394,7 @@ rpart.plot(tmodel3)
 
 ```
 ##### b. Calculate this Model's AUC Scores
-```{r}
+```{r warning=FALSE}
 # train set AUC score 
 tmodel3_pre_train_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_train), youtube_train[,target_column])
 cat('This model\'s AUC score on the training set is',tmodel3_pre_train_auc, "\n")
@@ -1428,8 +1415,51 @@ plot_roc(pred_test_roc_tmodel3, youtube_test[[target_column]],
          pred_train_roc_tmodel3, youtube_train[[target_column]])
 ```
 
+## 4.6 Logistic Regression classifier
+Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
+Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
+The independent variable is binary which 1 represent high income level and 0 represents low income level. We need to choose the binary logistic regression.
+### 4.6.1 Build Logistic Regression for all features
+```{r}
+lrmodel1 <- glm(as.formula(paste("binary_class ~ ", paste(c(categorical_independent_variables, numeric_independent_variables), collapse = ' + '))), data = train_data, family = "binomial")
+```
 
+```{r warning=FALSE}
+selVars <- c("channel_type_status","category","subscribers","video_views","uploads","created_year","subs_engagement","uploads_frequency","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income","country_status" )
+deviance_formula <- paste(target_column, '>0 ~ ', paste(selVars, collapse=' + '), sep='')
+cat(deviance_formula)
+cat("Feature dimension = ", length(selVars))
+gmodel <- glm(as.formula(deviance_formula), data=youtube_train, family=binomial(link='logit'))
+summary(gmodel)
+```
+According to the result of the gmodel, the smaller the p value, the stronger the correlation between the feature and the dependent variable.We can find the result of 'age' feature is NA, which has the possibility of a strong correlation with other features. This situation is more complex to analyze, so we decided not to use this feature.
+Combining the analysis of likelihood and logistic regression, we finally selected the features that are strongly correlated with the independent variable earning_class: subscribers, subscribers_engagement, and urban_rate to build prediction model.
 ## 4.6 Naïve Bayes Classifier
+### 4.6.1 Ensure features are independent of each other
+```{r}
+library(caret)
+
+# 创建一个通用的函数来消除特征组合中的相互关系
+eliminate_feature_relations <- function(data, feature_combinations) {
+  # 从数据中提取每个特征组合的特征
+  combined_features <- lapply(feature_combinations, function(combination) {
+    data[, combination]
+  })
+
+  # 连接特征组合以创建一个新数据框
+  combined_data <- do.call(cbind, combined_features)
+
+  # 使用主成分分析 (PCA) 来将特征组合投影到新的正交特征空间
+  pca_result <- prcomp(combined_data, center = TRUE, scale. = TRUE)
+
+  # 从PCA结果中提取投影后的特征
+  projected_features <- pca_result$x
+
+  # 返回投影后的特征
+  return(projected_features)
+}
+
+```
 
 # Part 5 Cluster
 ### 5.1 Backup the processed data 
