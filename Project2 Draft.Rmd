@@ -87,6 +87,9 @@ library(car)
 library(nnet)
 library(rpart)
 library(rpart.plot)
+library(pander)
+library(e1071)
+library(randomForest)
 ```
 
 
@@ -456,11 +459,11 @@ rm(factor_columns)
 Backup the raw_data into another name youtube_data
 ```{r Backup Data}
 youtube_data <- raw_data
-<<<<<<< HEAD
+
 clustering_data <- raw_data
-=======
+
 clustering_data <- raw_data 
->>>>>>> c0e2398b447965685b20842c1fe82dd9ea387c06
+
 ```
 
 
@@ -1284,13 +1287,23 @@ xtest, ytest, threshold=0.5) {
     
     # comparing performance on training vs. test
     trainperf_df <- performanceMeasures(
-    ytrain, pred_train, model.name="training", threshold=threshold)
+    ytrain, pred_train, model.name=paste(substitute(model), ", training"), threshold=threshold)
     testperf_df <- performanceMeasures(
-    ytest, pred_test, model.name="test", threshold=threshold)
+    ytest, pred_test, model.name=paste(substitute(model), ", testing"), threshold=threshold)
     
     # combine the two performance data frames using rbind()
     perftable <- rbind(trainperf_df, testperf_df)
     pandoc.table(perftable, justify = perf_justify)
+}
+# calculate each models' LogLikelihood value
+calculateLogLikelihood <- function(model, x, y) {
+  # 获取模型的预测概率
+  predicted_probabilities <- predict(model, newdata = x)
+  
+  # 计算对数似然
+  log_likelihood <- sum(ifelse(y == 1, log(predicted_probabilities), log(1 - predicted_probabilities)))
+  
+  return(log_likelihood)
 }
 ```
 #### 4.5.1.2 Plot the ROC
@@ -1313,7 +1326,7 @@ plot_roc <- function(predcol1, outcol1, predcol2, outcol2){
 #### 4.5.2.1 Build Descision Tree Model for all features
 首先需要建立完整的决策树模型，然后根据这个完整的决策树模型进行剪枝，根据剪枝前后的性能变化，决定使用哪些节点进行剪枝以获得更好的泛化性能。
 ##### a. Build the model
-```{r build decision tree model,fig.width=15,fig.height=20}
+```{r build decision tree model,fig.width=15,fig.height=15}
 formula_Var1 <- paste(target_column,'> 0 ~ ',paste(c(categorical_independent_variables,numeric_independent_variables), collapse=' + '), sep='')
 tmodel1 <- rpart(formula_Var1, data=youtube_train)
 
@@ -1334,8 +1347,11 @@ cat('This model\'s AUC score on the testing set is',tmodel1_test_auc)
 ```
 ##### c. Print the performance table
 分析第一个决策树模型
-```{r}
+```{r warning=FALSE}
 pretty_perf_table(tmodel1,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
+#predicted_probabilities <- predict(tmodel1, newdata = youtube_test)
+cat("tmodel1 Log Likelihood:", calculateLogLikelihood(tmodel1, youtube_test, positive_label), "\n")
+
 ```
 ##### d. Print the ROC plot
 ```{r}
@@ -1372,6 +1388,7 @@ cat('This model\'s AUC score on the testing set is',tmodel2_test_auc)
 ##### c. Print the performance table
 ```{r}
 pretty_perf_table(tmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
+cat("tmodel2 Log Likelihood:", calculateLogLikelihood(tmodel2, youtube_test, positive_label), "\n")
 ```
 ##### d. Print the ROC plot
 ```{r}
@@ -1394,7 +1411,7 @@ rpart.plot(tmodel3)
 
 ```
 ##### b. Calculate this Model's AUC Scores
-```{r warning=FALSE}
+```{r message=FALSE, warning=FALSE}
 # train set AUC score 
 tmodel3_pre_train_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_train), youtube_train[,target_column])
 cat('This model\'s AUC score on the training set is',tmodel3_pre_train_auc, "\n")
@@ -1404,8 +1421,9 @@ tmodel3_pre_test_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_test), y
 cat('This model\'s AUC score on the testing set is',tmodel3_pre_test_auc)
 ```
 ##### c. Print the performance table
-```{r}
+```{r warning=FALSE}
 pretty_perf_table(tmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+cat("tmodel3 Log Likelihood:", calculateLogLikelihood(tmodel3, youtube_test, positive_label), "\n")
 ```
 ##### d. Print the ROC plot
 ```{r}
@@ -1419,21 +1437,62 @@ plot_roc(pred_test_roc_tmodel3, youtube_test[[target_column]],
 Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
 Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
 The independent variable is binary which 1 represent high income level and 0 represents low income level. We need to choose the binary logistic regression.
-### 4.6.1 Build Logistic Regression for all features
+### 4.6.1 Build Logistic Regression model for all features
+```{r warning=FALSE}
+lrmodel1 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, family = "binomial")
+summary(lrmodel1)
+```
+performance
 ```{r}
-lrmodel1 <- glm(as.formula(paste("binary_class ~ ", paste(c(categorical_independent_variables, numeric_independent_variables), collapse = ' + '))), data = train_data, family = "binomial")
+cat("lrmodel1 Log Likelihood:", calculateLogLikelihood(lrmodel1, youtube_test, positive_label), "\n")
 ```
 
-```{r warning=FALSE}
-selVars <- c("channel_type_status","category","subscribers","video_views","uploads","created_year","subs_engagement","uploads_frequency","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income","country_status" )
-deviance_formula <- paste(target_column, '>0 ~ ', paste(selVars, collapse=' + '), sep='')
-cat(deviance_formula)
-cat("Feature dimension = ", length(selVars))
-gmodel <- glm(as.formula(deviance_formula), data=youtube_train, family=binomial(link='logit'))
-summary(gmodel)
+### 4.6.2 Build Logistic Regression model for feature combination 2
+```{r}
+lrmodel2 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, family = "binomial")
+summary(lrmodel2)
 ```
+performance
+```{r}
+cat("lrmodel2 Log Likelihood:", calculateLogLikelihood(lrmodel2, youtube_test, positive_label), "\n")
+```
+
+### 4.6.3 Build Logistic Regression model for feature combination 3
+```{r}
+lrmodel3 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, family = "binomial")
+summary(lrmodel3)
+```
+performance
+```{r}
+cat("lrmodel3 Log Likelihood:", calculateLogLikelihood(lrmodel3, youtube_test, positive_label), "\n")
+```
+
 According to the result of the gmodel, the smaller the p value, the stronger the correlation between the feature and the dependent variable.We can find the result of 'age' feature is NA, which has the possibility of a strong correlation with other features. This situation is more complex to analyze, so we decided not to use this feature.
 Combining the analysis of likelihood and logistic regression, we finally selected the features that are strongly correlated with the independent variable earning_class: subscribers, subscribers_engagement, and urban_rate to build prediction model.
+## 4.7 SVM classifier
+Because the SVM classifier can only be used to analyze numerical features, only numerical variables are used as model features in this classifier method.
+```{r}
+library(e1071)
+svm_model <- svm(as.formula(paste("earning_class ~ ", paste(numeric_independent_variables, collapse = ' + '))), data = youtube_train, kernel = "radial")
+summary(svm_model)
+```
+## 4.8 Random Forests classifier
+### 4.8.1 Build Random Forests model for feature combination 1
+```{r}
+rfmodel1 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, ntree = 100)
+summary(rfmodel1)
+```
+### 4.8.2 Build Random Forests model for feature combination 2
+```{r}
+rfmodel2 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, ntree = 100)
+summary(rfmodel2)
+```
+### 4.8.2 Build Random Forests model for feature combination 3
+```{r}
+rfmodel3 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, ntree = 100)
+summary(rfmodel3)
+```
+
 ## 4.6 Naïve Bayes Classifier
 ### 4.6.1 Ensure features are independent of each other
 ```{r}
