@@ -7,49 +7,22 @@ output:
     highlight: haddock
     theme: cosmo
     code_folding: hide
+    warning: False
 ---
 ```{r setup, include=FALSE}
 #Set all code chunks to display their R code by default
 knitr::opts_chunk$set(echo = TRUE)
 ```
-
-
-
-
-
-
-
-
-
-
-
 # Part1 - Introduction
-
-
-
 
 ## 1.1 - Project Background and Purpose
   In this project, our objective is to illustrate the process of modeling by using R machine learning functions. We aim to understand and apply various stages of data science including data preparation, model building, and model evaluation. We have choosen the YouTube dataset which is shared by uni coordinator. We also use the same dataset in our Project 1. The specific contributions of each member will be separated 50-50 fairly.
-  
-  
-  
   
 ## 1.2 Data Source and Characteristics
   The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023". (https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023)
   A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[@Elgiriyewithana2023]
 
-
-
-
-
-
-
-
 # Part2 - Setup
-
-
-
-
 
 ## 2.1 Load required R packages
   We load 'ggplot2' package [@Wickham2016] for making static graphics and 'dplyr' package [@Wickham2021] for data manipulation.
@@ -191,20 +164,9 @@ head(raw_data,n=100)
 ```
   Base on the standard output, we can see that subscribers shows how many people subscribe the Youtuber. The Title is the same as Youtuber, we need to figure out why it is the same but in two different columns. the Music Youtuber has 119000000 subsribers but only 0 uploads , so we need to make data cleaning later.
 
-
-
-
-
-
-
-
 # Part3 - Data Cleaning and Preparation
 
-
-
-
 ## 3.1 Data Cleaning
-
 
 ### 3.1.1 Check column names and make adjustments
 
@@ -469,7 +431,8 @@ clustering_data <- raw_data
 
 
 ### 3.1.8 Add new columns
-  Add new columns which might be used in the future.
+
+Add new columns which might be used in the future.
 
 #### 3.1.8.1 Full time column
 ```{r full time}
@@ -570,11 +533,7 @@ detect_unusual_rows(youtube_data)
 youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly_earning, ]
 ```
 
-
-
-
 ## 3.2 Data Preparation
-
 
 ### 3.2.1 Object and features
 In this project, we would build model and predict the high earning Youtuber on the top list.
@@ -612,32 +571,29 @@ gdp_data$Country.Name[gdp_data$Country.Name == "Venezuela, RB"] <- "Venezuela"
 change all the GDP NA into that year of average GDP value
 ```{r}
 replace_na_with_global_median <- function(data) {
-  years <- colnames(data)[-1]  # 获取年份列名
+  years <- colnames(data)[-1]  
   global_median_gdp <- numeric(length(years))
   
-    # 将 GDP 列转换为数值数据类型
+    # change GDP variable into numeric
   for (i in 2:ncol(data)) {
     data[, i] <- as.numeric(data[, i])
   }
   
-  # 计算每年的全球中位数GDP
+  # Calculate global median GDP for each year
   for (i in 1:length(years)) {
     global_median_gdp[i] <- median(data[!is.na(data[, years[i]]), years[i]], na.rm = TRUE)
   }
   
-  # 遍历每一年的每一个国家的GDP值，使用 apply 函数
   data[, years] <- t(apply(data[, years], 1, function(row) {
     is_na <- is.na(row)
     row[is_na] <- global_median_gdp[is_na]
     return(row)
   }))
   
-
-  
   return(data)
 }
 
-# 使用函数替代NA值
+
 gdp_data <- replace_na_with_global_median(gdp_data)
 
 
@@ -647,53 +603,47 @@ gdp_data <- replace_na_with_global_median(gdp_data)
 ```{r}
 # Divide the per capital GDP value in those years of channel age by the channel age in these years
 calculate_channel_age_adjusted_income <- function(youtube_data, gdp_data) {
-  # 初始化一个空的向量来存储结果
+  
   adjusted_income <- numeric(nrow(youtube_data))
   
-  # 遍历 youtube_data 的每一行
+  # Iterate through each row of youtube_data
   for (i in 1:nrow(youtube_data)) {
-    # 获取当前行的国家和创建年份
+  
     country <- as.character(youtube_data$country[i])
-    created_year <- as.numeric(as.character(youtube_data$created_year[i]))  # 将年份转换为数字
+    created_year <- as.numeric(as.character(youtube_data$created_year[i]))  
     
-    # 在 gdp_data 中查找相应的国家行
+    # Find the corresponding country row in gdp_data
     gdp_row <- gdp_data[gdp_data$`Country.Name` == country, ]
     created_year_column <- which(names(gdp_row) == created_year)
     
     if (nrow(gdp_row) == 0) {
-      # 如果没有找到匹配的国家数据，则将结果设为 NA
       adjusted_income[i] <- NA
     } else {
-      # 找到匹配的国家数据后，根据创建年份找到对应年份范围的 GDP 数据
       gdp_values <- as.numeric(gdp_row[ , (created_year_column + 1):64])
       
-      # 计算数值1
       value1 <- sum(gdp_values, na.rm = TRUE)
       
-      # 计算数值2
       value2 <- 1 / youtube_data$age[i]
       
-      # 计算最终结果
       adjusted_income[i] <- youtube_data$yearly_earning[i] / value2
     }
   }
   
-  # 将结果存储到 youtube_data 的 channel_age_adjusted_income 列中
   youtube_data$channel_age_adjusted_income <- adjusted_income
   
   return(youtube_data)
 }
 
-# 使用函数计算和更新 adjusted income
+
 youtube_data <- calculate_channel_age_adjusted_income(youtube_data, gdp_data)
 
 ```
 handle NAs in the channel_age_adjusted_income column
 ```{r}
-# 计算中位数
+
 median_value <- median(youtube_data$channel_age_adjusted_income, na.rm = TRUE)
 
-# 遍历 channel_age_adjusted_income 列
+
 for (i in 1:length(youtube_data$channel_age_adjusted_income)) {
   if (is.na(youtube_data$channel_age_adjusted_income[i])) {
     youtube_data$channel_age_adjusted_income[i] <- median_value
@@ -855,15 +805,11 @@ names(youtube_data)
 # Set a seed for reproducibility
 set.seed(562816)
 
-# Split the data into training and testing sets. 
-youtube_data$rgroup <- runif(dim(youtube_data)[1])
-youtube_train <- subset(youtube_data, rgroup <= 0.9)
-youtube_test <- subset(youtube_data, rgroup > 0.9)
-#train_index <- createDataPartition(youtube_data$earning_class, p = 0.8, list = FALSE, times = 1)
+train_index <- createDataPartition(youtube_data$earning_class, p = 0.8, list = FALSE, times = 1)
 
 # Subset the original dataset to create training and testing datasets based on the indices generated above.
-#youtube_train <- youtube_data[train_index, ]
-#youtube_test  <- youtube_data[-train_index, ]
+youtube_train <- youtube_data[train_index, ]
+youtube_test  <- youtube_data[-train_index, ]
 
 # Identify and store the names of all independent variables (i.e., all variables excluding the target 'earning_class').
 independent_variables <- setdiff(colnames(youtube_data), "earning_class")
@@ -875,24 +821,11 @@ numeric_independent_variables <- independent_variables[sapply(youtube_data[, ind
 categorical_independent_variables <- independent_variables[sapply(youtube_data[, independent_variables], class) %in% c("factor", "character")]
 ```
 
-
-
-
-
-
-
-
 # Part4 Classification
-
-
-
 
 ## 4.1 Dependent Variable & Independent Variable
 Dependent Variable: earning_class
 Independent variable: "subscribers","video_views","uploads","channel_type_status","created_year","category","subs_engagement","uploads_frequency","average_views_per_video"     "urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","earning_class","channel_age_adjusted_income","country_status"   
-
-
-
 
 ## 4.2 Feature Selection
 
@@ -946,7 +879,7 @@ Single_variable_model <- function(target_column, feature_column, prediction_colu
 
 ```
 
-  Build up AUC calculator function.
+ Build up AUC calculator function.
   
 ```{r AUC calculator function}
 AUC_calculator <- function(predcol, outcol) {
@@ -980,7 +913,7 @@ SingleVariablePredictNumeric <- function(target_column, feature_column, predicti
 
 #### 4.2.2.1 Analyzing Categorical variables:
 
-  Call Single variable model & AUC calculator function， check AUC value for categorical independent variables.
+Call Single variable model & AUC calculator function， check AUC value for categorical independent variables.
 ```{r analyse categorical variables}
 
 for (var in categorical_independent_variables) {
@@ -993,7 +926,6 @@ for (var in categorical_independent_variables) {
     }
 }
 ```
-
 
 #### 4.2.2.2 Analyzing Numeric variables:
   Check the AUC value for numeric independent variables. We need to change the numeric data into category data first as the instruction in Week9 Slides.
@@ -1116,8 +1048,8 @@ grid.arrange(fig1, fig2, ncol=2)
 
 ## 4.3 Null model
 ### 4.3.1 Build Null Model
-By analyzing only the target variable, a null model is created and the AUC of the model is evaluated. The AUC value of the null model can help comparing single variable.
-```{r build null model}
+According to the knowledge of lectures, If the AUC value of a single variable model is close to or lower than the AUC value of the null model, it means that the single variable model may not provide enough information for predicting the target variable. In this case, using this single variable model may not have a significant impact on model performance.By analyzing only the target variable, a null model is created and the AUC of the model is evaluated. The AUC value of the null model can help comparing single variable.
+```{r build null model, warning=FALSE}
 # Calculate the number of positive class instances (Npos)
 Npos <- sum(youtube_train[, target_column] == 1)
 cat("Number of positive class (target_column == 1) in youtube_train:", Npos, "rows\n")
@@ -1148,8 +1080,8 @@ feature_combine1 <- c(categorical_independent_variables,numeric_independent_vari
 ```
 
 ### 4.4.1 Likelihood and deviance
-According to the knowledge of lectures, If the AUC value of a single variable model is close to or lower than the AUC value of the null model, it means that the single variable model may not provide enough information for predicting the target variable. In this case, using this single variable model may not have a significant impact on model performance.
-使用likelihood去比较单变量和空变量
+
+First calculate the log likelihood of the null model as the standard
 ```{r}
 positive_label <- '1'
 # Define a function to compute log likelihood 
@@ -1158,13 +1090,13 @@ logLikelihood <- function(ytrue, ypred, epsilon=1e-6) {
 }
 # Compute the likelihood of the Null model on the Training model
 logNull <- logLikelihood(youtube_train[,target_column], sum(youtube_train[,target_column]==positive_label)/nrow(youtube_train))
-cat(logNull)
+cat('NULL model\'s log likelihood is',logNull)
 ```
 #### 4.4.1.1 Deviance of Categorical Variables
 ```{r}
 # By adjusting the value of minDrop, we can control how strictly the variables are selected
 selCatVars <- c()
-minDrop <- 10 #可能还需要调整值的大小
+minDrop <- 10 
 for (v in categorical_independent_variables) {
     pi <- paste( v, sep='')
     binary_var <- ifelse(youtube_train$v == "desired_level", 1, 0)
@@ -1180,7 +1112,7 @@ The deviance values of the two categorical variables are larger than the null mo
 #### 4.3.2.2 Deviance of Numeric Variables
 ```{r warning=FALSE}
 selNumVars <- c()
-minDrop <- 0 # 可能还需要调整值的大小
+minDrop <- 10 
 for (v in numeric_independent_variables) {
   pi <- paste(v, sep='')
   epsilon <- 1e-6  # Small constant to avoid division by zero
@@ -1202,7 +1134,7 @@ feature_combine2 <- c("channel_type_status","country_status","video_views","aver
 analyze_features <- function(data, target_column, categorical_features, numeric_features) {
   results <- data.frame(Feature = character(0), Analysis = character(0), P_Value = numeric(0))
   
-  # 分析分类特征
+  # Analyze categorical features
   for (feature in categorical_features) {
     cross_table <- table(data[, feature], data[, target_column])
     chi_square <- chisq.test(cross_table)
@@ -1216,7 +1148,7 @@ analyze_features <- function(data, target_column, categorical_features, numeric_
     results <- rbind(results, result)
   }
   
-  # 分析数值特征
+  # Analyze numerical features
   for (feature in numeric_features) {
     anova_result <- aov(data[, target_column] ~ data[, feature])
     
@@ -1232,14 +1164,9 @@ analyze_features <- function(data, target_column, categorical_features, numeric_
   return(results)
 }
 
-# 使用函数分析特征
 results <- analyze_features(youtube_data, target_column, categorical_independent_variables, numeric_independent_variables)
 
-# 打印整个结果
 print(results)
-
-
-  
 ```
 According to the result analysis, the smaller the p value, the stronger the correlation between the feature and the independent variable. When the p value is less than 0.05, which is 5e-2, it indicates that the feature has a strong correlation with the independent variable. Filter out strongly correlated features as 
 feature combination 3
@@ -1300,10 +1227,9 @@ xtest, ytest, threshold=0.5) {
 }
 # calculate each models' LogLikelihood value
 calculateLogLikelihood <- function(model, x, y, epsilon = 1e-6) {
-  # 获取模型的预测概率
+
   predicted_probabilities <- predict(model, newdata = x)
   
-  # 计算对数似然
   log_likelihood <- sum(ifelse(y == 1, log(predicted_probabilities + epsilon), log(1 - predicted_probabilities + epsilon)))
   
   return(log_likelihood)
@@ -1328,8 +1254,7 @@ plot_roc <- function(predcol1, outcol1, predcol2, outcol2){
 
 ### 4.5.2 Build Descision Tree Model
 #### 4.5.2.1 Build Descision Tree Model for all features
-首先需要建立完整的决策树模型，然后根据这个完整的决策树模型进行剪枝，根据剪枝前后的性能变化，决定使用哪些节点进行剪枝以获得更好的泛化性能。
-Build the model
+First build a model based on all features and observe the performance of the model.
 ```{r build decision tree model,fig.width=15,fig.height=15}
 formula_Var1 <- paste(target_column,'> 0 ~ ',paste(c(categorical_independent_variables,numeric_independent_variables), collapse=' + '), sep='')
 tmodel1 <- rpart(formula_Var1, data=youtube_train)
@@ -1341,8 +1266,8 @@ rpart.plot(tmodel1)
 
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score
 tmodel1_train_auc <- AUC_calculator(predict(tmodel1, newdata=youtube_train), youtube_train[,target_column])
 cat('tmodel1\'s AUC score on the training set is',tmodel1_train_auc, "\n")
@@ -1356,6 +1281,7 @@ pretty_perf_table(tmodel1,youtube_train[c(categorical_independent_variables,nume
 
 # log likelihood
 cat("tmodel1 Log Likelihood:", calculateLogLikelihood(tmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 #Print the ROC plot
 pred_test_roc_tmodel1 <- predict(tmodel1, newdata=youtube_test)
@@ -1363,8 +1289,9 @@ pred_train_roc_tmodel1 <- predict(tmodel1, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel1, youtube_test[[target_column]],
          pred_train_roc_tmodel1, youtube_train[[target_column]])
 ```
+The ‘Decision Tree with all features’ model assigns a log likelihood of -0.02955777 which is better than the Null model’s -380.3058. Although the model performs well in terms of AUC and Recall, the Precision is relatively low, indicating that there is a certain number of false positives in cases where the model predicts a positive class. This may cause the model to generate more false positives in practical applications, reducing its reliability and operability. Moreover, the AUC value is too large, and there is a risk of overfitting.
 #### 4.5.2.2 Build Descision Tree Model for feature combination 2
-Build the model
+Build the model for feature combination 2
 ```{r}
 formula_Var2 <- paste(target_column,'> 0 ~ ', paste(feature_combine2, collapse=' + '), sep='')
 tmodel2 <- rpart(formula_Var2, data=youtube_train)
@@ -1375,8 +1302,8 @@ summary(tmodel2)
 rpart.plot(tmodel2)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score
 tmodel2_train_auc <- AUC_calculator(predict(tmodel2, newdata=youtube_train), youtube_train[,target_column])
 cat('tmodel2\'s AUC score on the training set is',tmodel2_train_auc, "\n")
@@ -1390,6 +1317,7 @@ pretty_perf_table(tmodel2,youtube_train[feature_combine2],youtube_train[,target_
 
 # log likelihood
 cat("tmodel2 Log Likelihood:", calculateLogLikelihood(tmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # Print the ROC plot
 pred_test_roc_tmodel2 <- predict(tmodel2, newdata=youtube_test)
@@ -1397,7 +1325,7 @@ pred_train_roc_tmodel2 <- predict(tmodel2, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel2, youtube_test[[target_column]],
          pred_train_roc_tmodel2, youtube_train[[target_column]])
 ```
-
+The ‘Decision Tree with feature combination 2’ model assigns a log likelihood of -2.079434 which is better than the Null model’s -380.3058. The model has an AUC of 0.94, indicating strong discriminative power. However, it exhibits suboptimal performance in terms of Precision (0.8696) and Recall (0.7895). The Precision value suggests that the model tends to produce false positives, potentially leading to a higher rate of misclassifications. Although Recall shows some improvement compared to Precision, the F1 score of 0.8276 suggests an imbalance between Precision and Recall. The model's Deviance Normalization value of 1.154 indicates that it could be further fine-tuned for improved calibration. In summary, while the model has good discriminatory ability (AUC), it suffers from imbalanced Precision and Recall, requiring optimization to achieve a more balanced trade-off between false positives and false negatives. -380.3058.
 #### 4.5.2.3 Build Descision Tree Model for feature combination 3
 Build the model
 ```{r build decision tree model,fig.width=15,fig.height=8}
@@ -1411,21 +1339,22 @@ rpart.plot(tmodel3)
 
 ```
 
-Performance
+Check the Model Performance
 ```{r message=FALSE, warning=FALSE}
 # train set AUC score 
-tmodel3_pre_train_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_train), youtube_train[,target_column])
-cat('tmodel3\'s AUC score on the training set is',tmodel3_pre_train_auc, "\n")
+tmodel3_train_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('tmodel3\'s AUC score on the training set is',tmodel3_train_auc, "\n")
 
 # test set AUC score
-tmodel3_pre_test_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_test), youtube_test[,target_column])
-cat('tmodel3\'s AUC score on the testing set is',tmodel3_pre_test_auc)
+tmodel3_test_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('tmodel3\'s AUC score on the testing set is',tmodel3_test_auc)
 
 # performance table
 pretty_perf_table(tmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("tmodel3 Log Likelihood:", calculateLogLikelihood(tmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # Print the ROC plot
 pred_test_roc_tmodel3 <- predict(tmodel3, newdata=youtube_test)
@@ -1433,32 +1362,32 @@ pred_train_roc_tmodel3 <- predict(tmodel3, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel3, youtube_test[[target_column]],
          pred_train_roc_tmodel3, youtube_train[[target_column]])
 ```
-
+The ‘Decision Tree with feature combination 3’ model assigns a log likelihood of -2.079434 which is better than the Null model’s -380.3058. With an impressive AUC value of 0.9719, the 'tmodel3' model showcases remarkable discriminatory power. Its strong Precision (0.9281) suggests that it minimizes false positives, while its high Recall (0.9342) indicates a balanced ability to capture true positives. This equilibrium is reflected in the F1 score of 0.9311, denoting a harmonious trade-off between Precision and Recall. The Deviance Normalization value of 1.189 implies some room for calibration enhancement, but overall, this model demonstrates exceptional performance in classifying the target variable.
 ## 4.6 Logistic Regression classifier
-Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
-Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
-The independent variable is binary which 1 represent high income level and 0 represents low income level. We need to choose the binary logistic regression.
+
+The decision to employ logistic regression as the classification model is driven by its suitability for predictive tasks. Logistic regression is a linear model with interpretable coefficients that reveal feature impacts on the target variable. It automatically selects pertinent features, while unimportant ones can be minimized with regularization [Hastie2009]. In our binary classification task (1 for high income, 0 for low income), binary logistic regression is an ideal choice, offering both interpretability and relevance to the problem. It aids in understanding the significance of features, simplifies the model, and effectively predicts income levels.
 ### 4.6.1 Build Logistic Regression model for all features
 ```{r warning=FALSE}
 lrmodel1 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, family = "binomial")
 summary(lrmodel1)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score 
-lrmodel1_pre_train_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_train), youtube_train[,target_column])
-cat('lrmodel1\'s AUC score on the training set is',lrmodel1_pre_train_auc, "\n")
+lrmodel1_train_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel1\'s AUC score on the training set is',lrmodel1_train_auc, "\n")
 
 # test set AUC score
-lrmodel1_pre_test_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_test), youtube_test[,target_column])
-cat('lrmodel1\'s AUC score on the testing set is',lrmodel1_pre_test_auc)
+lrmodel1_test_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel1\'s AUC score on the testing set is',lrmodel1_test_auc)
 
 # performance table
 pretty_perf_table(lrmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine1],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("lrmodel1 Log Likelihood:", calculateLogLikelihood(lrmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_lrmodel1 <- predict(lrmodel1, newdata=youtube_test)
@@ -1466,28 +1395,29 @@ pred_train_roc_lrmodel1 <- predict(lrmodel1, newdata=youtube_train)
 plot_roc(pred_test_roc_lrmodel1, youtube_test[[target_column]],
          pred_train_roc_lrmodel1, youtube_train[[target_column]])
 ```
-
+The 'Logistic Regression with all features' model has a high AUC value, indicating that the model has a strong ability to distinguish between positive and negative categories. The accuracy is 0.924, which is high, indicating that the model can accurately predict the positive category, but There is also the possibility of false positives, and the log-likelihood value of the model has no calculated results, so the prediction results of the model are not very good.
 ### 4.6.2 Build Logistic Regression model for feature combination 2
-```{r}
+```{r warning=FALSE}
 lrmodel2 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, family = "binomial")
 summary(lrmodel2)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score 
-lrmodel2_pre_train_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_train), youtube_train[,target_column])
-cat('lrmodel2\'s AUC score on the training set is',lrmodel2_pre_train_auc, "\n")
+lrmodel2_train_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel2\'s AUC score on the training set is',lrmodel2_train_auc, "\n")
 
 # test set AUC score
-lrmodel2_pre_test_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_test), youtube_test[,target_column])
-cat('lrmodel2\'s AUC score on the testing set is',lrmodel2_pre_test_auc)
+lrmodel2_test_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel2\'s AUC score on the testing set is',lrmodel2_test_auc)
 
 # performance table
 pretty_perf_table(lrmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("lrmodel2 Log Likelihood:", calculateLogLikelihood(lrmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_lrmodel2 <- predict(lrmodel2, newdata=youtube_test)
@@ -1495,28 +1425,29 @@ pred_train_roc_lrmodel2 <- predict(lrmodel2, newdata=youtube_train)
 plot_roc(pred_test_roc_lrmodel2, youtube_test[[target_column]],
          pred_train_roc_lrmodel2, youtube_train[[target_column]])
 ```
-
+Although the AUC value of The 'Logistic Regression with feature combination 2' model is not bad at 0.949, the precision is a bit low at only 0.89, which means that false positives are more likely to occur. The recall rate is also a bit low at only 0.59, which means that the model cannot capture it correctly. Most of the positive categories, and the log-likelihood value cannot be calculated, so the model cannot predict well.
 ### 4.6.3 Build Logistic Regression model for feature combination 3
-```{r}
+```{r warning=FALSE}
 lrmodel3 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, family = "binomial")
 summary(lrmodel3)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score 
-lrmodel3_pre_train_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_train), youtube_train[,target_column])
-cat('lrmodel3\'s AUC score on the training set is',lrmodel3_pre_train_auc, "\n")
+lrmodel3_train_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel3\'s AUC score on the training set is',lrmodel3_train_auc, "\n")
 
 # test set AUC score
-lrmodel3_pre_test_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_test), youtube_test[,target_column])
-cat('lrmodel3\'s AUC score on the testing set is',lrmodel3_pre_test_auc)
+lrmodel3_test_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel3\'s AUC score on the testing set is',lrmodel3_test_auc)
 
 # performance table
 pretty_perf_table(lrmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("lrmodel3 Log Likelihood:", calculateLogLikelihood(lrmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_lrmodel3 <- predict(lrmodel3, newdata=youtube_test)
@@ -1525,8 +1456,7 @@ plot_roc(pred_test_roc_lrmodel3, youtube_test[[target_column]],
          pred_train_roc_lrmodel3, youtube_train[[target_column]])
 ```
 
-According to the result of the gmodel, the smaller the p value, the stronger the correlation between the feature and the dependent variable.We can find the result of 'age' feature is NA, which has the possibility of a strong correlation with other features. This situation is more complex to analyze, so we decided not to use this feature.
-Combining the analysis of likelihood and logistic regression, we finally selected the features that are strongly correlated with the independent variable earning_class: subscribers, subscribers_engagement, and urban_rate to build prediction model.
+While the 'Logistic Regression with all features' model demonstrates a strong AUC value of 0.961, its precision is relatively lower at 0.897. This lower precision suggests a heightened likelihood of false positive predictions. Furthermore, the model exhibits a moderate recall rate of 0.71, which means it captures some positive cases correctly but may miss a substantial portion. It's important to note that the model's log-likelihood value cannot be calculated, indicating potential limitations in its predictive capabilities. Overall, while the AUC score is promising, the model's imbalanced precision and recall rates suggest room for improvement in its predictive performance.
 ## 4.7 SVM classifier
 Because the SVM classifier can only be used to analyze numerical features, only numerical variables are used as model features in this classifier method.
 ```{r}
@@ -1535,21 +1465,22 @@ svm_model <- svm(as.formula(paste("earning_class ~ ", paste(numeric_independent_
 summary(svm_model)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score 
-svm_model_pre_train_auc <- AUC_calculator(predict(svm_model, newdata=youtube_train), youtube_train[,target_column])
-cat('svm_model\'s AUC score on the training set is',svm_model_pre_train_auc, "\n")
+svm_model_train_auc <- AUC_calculator(predict(svm_model, newdata=youtube_train), youtube_train[,target_column])
+cat('svm_model\'s AUC score on the training set is',svm_model_train_auc, "\n")
 
 # test set AUC score
-svm_model_pre_test_auc <- AUC_calculator(predict(svm_model, newdata=youtube_test), youtube_test[,target_column])
-cat('svm_model\'s AUC score on the testing set is',svm_model_pre_test_auc)
+svm_model_test_auc <- AUC_calculator(predict(svm_model, newdata=youtube_test), youtube_test[,target_column])
+cat('svm_model\'s AUC score on the testing set is',svm_model_test_auc)
 
 # performance table
 pretty_perf_table(svm_model,youtube_train[numeric_independent_variables],youtube_train[,target_column] == positive_label,youtube_test[numeric_independent_variables],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("svm_model Log Likelihood:", calculateLogLikelihood(svm_model, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_svm_model <- predict(svm_model, newdata=youtube_test)
@@ -1557,29 +1488,31 @@ pred_train_roc_svm_model <- predict(svm_model, newdata=youtube_train)
 plot_roc(pred_test_roc_svm_model, youtube_test[[target_column]],
          pred_train_roc_svm_model, youtube_train[[target_column]])
 ```
-
+The 'SVM for all numeric features' model displays a good ability to differentiate between classes with an AUC of 0.9331. While achieving a high precision of 0.9244, suggesting limited false positives, it has a moderate recall of 0.7237, indicating some potential for missing positive cases. The Log Likelihood value of -1.3122 is encouraging, outperforming the null model, though further refinement is needed. In summary, the model shows promise but requires optimization to balance precision and recall effectively and maximize its potential.
 ## 4.8 Random Forests classifier
 ### 4.8.1 Build Random Forests model for feature combination 1
-```{r}
+Build Random Forests model for feature combination 1
+```{r warning=FALSE}
 rfmodel1 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, ntree = 100)
 summary(rfmodel1)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score 
-rfmodel1_pre_train_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_train), youtube_train[,target_column])
-cat('rfmodel1\'s AUC score on the training set is',rfmodel1_pre_train_auc, "\n")
+rfmodel1_train_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel1\'s AUC score on the training set is',rfmodel1_train_auc, "\n")
 
 # test set AUC score
-rfmodel1_pre_test_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_test), youtube_test[,target_column])
-cat('rfmodel1\'s AUC score on the testing set is',rfmodel1_pre_test_auc)
+rfmodel1_test_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel1\'s AUC score on the testing set is',rfmodel1_test_auc)
 
 # performance table
 pretty_perf_table(rfmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine1],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("rfmodel1 Log Likelihood:", calculateLogLikelihood(rfmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_rfmodel1 <- predict(rfmodel1, newdata=youtube_test)
@@ -1587,28 +1520,30 @@ pred_train_roc_rfmodel1 <- predict(rfmodel1, newdata=youtube_train)
 plot_roc(pred_test_roc_rfmodel1, youtube_test[[target_column]],
          pred_train_roc_rfmodel1, youtube_train[[target_column]])
 ```
-
+While the AUC of the 'Random Forest for all features' model stands at a perfect 1.0, indicating an exceptional ability to distinguish between classes, the precision of 1.0 suggests that it might be overfitting to the training data. Although the recall is quite high at 0.9934, meaning it effectively captures the positive cases, a Log Likelihood value of -0.7402 raises concerns. This Log Likelihood suggests that the model performs worse than the null model. This paradoxical result is indicative of an issue with the model's generalization. In summary, despite the seemingly perfect AUC and high recall, the Random Forest model demonstrates a suboptimal performance as indicated by the Log Likelihood and precision values.
 ### 4.8.2 Build Random Forests model for feature combination 2
-```{r}
+Build Random Forests model for feature combination 2
+```{r warning=FALSE}
 rfmodel2 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, ntree = 100)
 summary(rfmodel2)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score 
-rfmodel2_pre_train_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_train), youtube_train[,target_column])
-cat('rfmodel2\'s AUC score on the training set is',rfmodel2_pre_train_auc, "\n")
+rfmodel2_train_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel2\'s AUC score on the training set is',rfmodel2_train_auc, "\n")
 
 # test set AUC score
-rfmodel2_pre_test_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_test), youtube_test[,target_column])
-cat('rfmodel2\'s AUC score on the testing set is',rfmodel2_pre_test_auc)
+rfmodel2_test_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel2\'s AUC score on the testing set is',rfmodel2_test_auc)
 
 # performance table
 pretty_perf_table(rfmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("rfmodel2 Log Likelihood:", calculateLogLikelihood(rfmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_rfmodel2 <- predict(rfmodel2, newdata=youtube_test)
@@ -1616,33 +1551,48 @@ pred_train_roc_rfmodel2 <- predict(rfmodel2, newdata=youtube_train)
 plot_roc(pred_test_roc_rfmodel2, youtube_test[[target_column]],
          pred_train_roc_rfmodel2, youtube_train[[target_column]])
 ```
+
+Despite the 'Random Forest for feature combination 2' model achieving an exceptional AUC score of 0.9999459 on the training data, reflecting strong discriminative capability, the model exhibits limitations in precision (1.0000) and recall (0.9737). These characteristics indicate a propensity for a high number of false positives, which can result in incorrect positive predictions. Furthermore, the Log Likelihood of -0.8883489 indicates suboptimal calibration, making it less reliable for accurately estimating probabilities. These issues, including less than ideal recall, can impact the model's performance when making predictions.
 ### 4.8.2 Build Random Forests model for feature combination 3
-```{r}
+Build Random Forests model for feature combination 3
+```{r warning=FALSE}
 rfmodel3 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, ntree = 100)
 summary(rfmodel3)
 ```
 
-Performance
-```{r}
+Check the Model Performance
+```{r warning=FALSE}
 # train set AUC score 
-rfmodel3_pre_train_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_train), youtube_train[,target_column])
-cat('rfmodel3\'s AUC score on the training set is',rfmodel3_pre_train_auc, "\n")
+rfmodel3_train_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel3\'s AUC score on the training set is',rfmodel3_train_auc, "\n")
 
 # test set AUC score
-rfmodel3_pre_test_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_test), youtube_test[,target_column])
-cat('rfmodel3\'s AUC score on the testing set is',rfmodel3_pre_test_auc)
+rfmodel3_test_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel3\'s AUC score on the testing set is',rfmodel3_test_auc)
 
 # performance table
 pretty_perf_table(rfmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("rfmodel3 Log Likelihood:", calculateLogLikelihood(rfmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_rfmodel3 <- predict(rfmodel3, newdata=youtube_test)
 pred_train_roc_rfmodel3 <- predict(rfmodel3, newdata=youtube_train)
 plot_roc(pred_test_roc_rfmodel1, youtube_test[[target_column]],
          pred_train_roc_rfmodel1, youtube_train[[target_column]])
+```
+Despite 'Random Forest for feature combination ' model demonstrating an exceptionally high AUC score of 0.9999892, emphasizing its excellent discrimination ability, it faces challenges in terms of precision and recall. With a precision of 1.0000 and recall of 0.9671, the model tends to produce more false positives and may not fully capture all positive instances. Furthermore, the Log Likelihood value of -0.6429955 indicates calibration issues, affecting the model's accuracy in probability estimates. These deficiencies could hinder the model's predictive reliability, particularly in situations where precision and recall are of utmost importance.
+## 4.9 Compare all models
+### 4.9.1 models performace
+```{r}
+model_data <- data.frame(
+  model.type = c("Decision Tree", "Decision Tree", "Decision Tree","Logistic Regression", "Logistic Regression", "Logistic Regression","SVM", "Random Forest", "Random Forest","Random Forest"),
+  model.name = c("tmodel1_train_auc", "tmodel2_train_auc", "tmodel3_train_auc", "lrmodel1_test_auc", "lrmodel2_test_auc","lrmodel3_test_auc", "svm_model_test_auc","rfmodel1_train_auc", "rfmodel2_train_auc", "rfmodel3_test_auc"),
+  train.auc = c(tmodel1_train_auc,tmodel2_train_auc,tmodel3_train_auc,lrmodel1_train_auc,lrmodel2_train_auc,lrmodel3_train_auc,svm_model_train_auc,rfmodel1_train_auc,rfmodel2_train_auc,rfmodel3_train_auc)
+)
+print(model_data)
 ```
 
 # Part 5 Cluster
