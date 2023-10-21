@@ -855,12 +855,15 @@ names(youtube_data)
 # Set a seed for reproducibility
 set.seed(562816)
 
-# Split the data into training and testing sets using a stratified sampling method. 
-train_index <- createDataPartition(youtube_data$earning_class, p = 0.8, list = FALSE, times = 1)
+# Split the data into training and testing sets. 
+youtube_data$rgroup <- runif(dim(youtube_data)[1])
+youtube_train <- subset(youtube_data, rgroup <= 0.9)
+youtube_test <- subset(youtube_data, rgroup > 0.9)
+#train_index <- createDataPartition(youtube_data$earning_class, p = 0.8, list = FALSE, times = 1)
 
 # Subset the original dataset to create training and testing datasets based on the indices generated above.
-youtube_train <- youtube_data[train_index, ]
-youtube_test  <- youtube_data[-train_index, ]
+#youtube_train <- youtube_data[train_index, ]
+#youtube_test  <- youtube_data[-train_index, ]
 
 # Identify and store the names of all independent variables (i.e., all variables excluding the target 'earning_class').
 independent_variables <- setdiff(colnames(youtube_data), "earning_class")
