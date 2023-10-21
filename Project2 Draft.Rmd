@@ -1594,6 +1594,8 @@ model_data <- data.frame(
 )
 print(model_data)
 ```
+### 4.9.2 ROC plot for each model
+
 
 # Part 5 Cluster
 ### 5.1 Backup the processed data 
@@ -1994,3 +1996,87 @@ pages = {105-109},
 5.4.2 Salary
 5.4.3 Rating
 
+```{r}
+library(shiny)
+
+# 创建Shiny应用
+ui <- fluidPage(
+  titlePanel("Machine Learning Visualization"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("classification_type", "Classification Type",
+                  choices = c("Single Variable Model", "Two Classification Model")),
+      conditionalPanel(
+        condition = "input.classification_type == 'Two Classification Model'",
+        selectInput("model_type", "Model Type",
+                    choices = c("Decision Tree Model", "Logistic Regression Model",
+                               "SVM Model", "Random Forest Model"))
+      ),
+      selectInput("plot_type", "Plot Type", choices = c("Single Model", "All Models"))
+    ),
+    mainPanel(
+      plotOutput("roc_plot")
+    )
+  )
+)
+
+server <- function(input, output) {
+  output$roc_plot <- renderPlot({
+    if (input$plot_type == "Single Model") {
+      plot_selected_model(input$model_type)
+    } else if (input$plot_type == "All Models") {
+      plot_all_models(input$model_type)
+    }
+  })
+
+  plot_selected_model <- function(model_type) {
+    if (model_type == "Decision Tree Model") {
+      pred_train_roc_tmodel1 <- predict(tmodel1, newdata = youtube_train)
+      plot_roc(pred_train_roc_tmodel1, youtube_train[[target_column]])
+    } else if (model_type == "Logistic Regression Model") {
+      pred_train_roc_lrmodel1 <- predict(lrmodel1, newdata = youtube_train)
+      plot_roc(pred_train_roc_lrmodel1, youtube_train[[target_column]])
+    } else if (model_type == "SVM Model") {
+      pred_train_roc_svm_model <- predict(svm_model, newdata = youtube_train)
+      plot_roc(pred_train_roc_svm_model, youtube_train[[target_column]])
+    } else if (model_type == "Random Forest Model") {
+      pred_train_roc_rfmodel1 <- predict(rfmodel1, newdata = youtube_train)
+      plot_roc(pred_train_roc_rfmodel1, youtube_train[[target_column]])
+    }
+  }
+
+  plot_all_models <- function(model_type) {
+    ncol <- 2
+    nrow <- 2
+    par(mfrow = c(nrow, ncol))
+
+    if (model_type == "Decision Tree Model") {
+      for (i in 1:3) {
+        model_name <- paste("tmodel", i, sep = "")
+        pred_train_roc_model <- predict(get(model_name), newdata = youtube_train)
+        plot_roc(pred_train_roc_model, youtube_train[[target_column]], main = model_name)
+      }
+    } else if (model_type == "Logistic Regression Model") {
+      for (i in 1:3) {
+        model_name <- paste("lrmodel", i, sep = "")
+        pred_train_roc_model <- predict(get(model_name), newdata = youtube_train)
+        plot_roc(pred_train_roc_model, youtube_train[[target_column]], main = model_name)
+      }
+    } else if (model_type == "SVM Model") {
+      pred_train_roc_svm_model <- predict(svm_model, newdata = youtube_train)
+      plot_roc(pred_train_roc_svm_model, youtube_train[[target_column]], main = "svm_model")
+    } else if (model_type == "Random Forest Model") {
+      for (i in 1:3) {
+        model_name <- paste("rfmodel", i, sep = "")
+        pred_train_roc_model <- predict(get(model_name), newdata = youtube_train)
+        plot_roc(pred_train_roc_model, youtube_train[[target_column]], main = model_name)
+      }
+    }
+
+    par(mfrow = c(1, 1))
+  }
+}
+
+shinyApp(ui, server)
+
+```
