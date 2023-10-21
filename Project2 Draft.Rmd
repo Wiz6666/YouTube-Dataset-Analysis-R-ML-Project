@@ -87,6 +87,9 @@ library(car)
 library(nnet)
 library(rpart)
 library(rpart.plot)
+library(pander)
+library(e1071)
+library(randomForest)
 ```
 
 
@@ -456,11 +459,11 @@ rm(factor_columns)
 Backup the raw_data into another name youtube_data
 ```{r Backup Data}
 youtube_data <- raw_data
-<<<<<<< HEAD
+
 clustering_data <- raw_data
-=======
+
 clustering_data <- raw_data 
->>>>>>> c0e2398b447965685b20842c1fe82dd9ea387c06
+
 ```
 
 
@@ -1284,14 +1287,25 @@ xtest, ytest, threshold=0.5) {
     
     # comparing performance on training vs. test
     trainperf_df <- performanceMeasures(
-    ytrain, pred_train, model.name="training", threshold=threshold)
+    ytrain, pred_train, model.name=paste(substitute(model), ", training"), threshold=threshold)
     testperf_df <- performanceMeasures(
-    ytest, pred_test, model.name="test", threshold=threshold)
+    ytest, pred_test, model.name=paste(substitute(model), ", testing"), threshold=threshold)
     
     # combine the two performance data frames using rbind()
     perftable <- rbind(trainperf_df, testperf_df)
     pandoc.table(perftable, justify = perf_justify)
 }
+# calculate each models' LogLikelihood value
+calculateLogLikelihood <- function(model, x, y, epsilon = 1e-6) {
+  # 获取模型的预测概率
+  predicted_probabilities <- predict(model, newdata = x)
+  
+  # 计算对数似然
+  log_likelihood <- sum(ifelse(y == 1, log(predicted_probabilities + epsilon), log(1 - predicted_probabilities + epsilon)))
+  
+  return(log_likelihood)
+}
+
 ```
 #### 4.5.1.2 Plot the ROC
 build a function to generate the ROC plot
@@ -1312,69 +1326,69 @@ plot_roc <- function(predcol1, outcol1, predcol2, outcol2){
 ### 4.5.2 Build Descision Tree Model
 #### 4.5.2.1 Build Descision Tree Model for all features
 首先需要建立完整的决策树模型，然后根据这个完整的决策树模型进行剪枝，根据剪枝前后的性能变化，决定使用哪些节点进行剪枝以获得更好的泛化性能。
-##### a. Build the model
-```{r build decision tree model,fig.width=15,fig.height=20}
+Build the model
+```{r build decision tree model,fig.width=15,fig.height=15}
 formula_Var1 <- paste(target_column,'> 0 ~ ',paste(c(categorical_independent_variables,numeric_independent_variables), collapse=' + '), sep='')
 tmodel1 <- rpart(formula_Var1, data=youtube_train)
 
 summary(tmodel1)
 
-# 可视化决策树
+# visualization decision tree 
 rpart.plot(tmodel1)
 
 ```
-##### b. Calculate this Model's AUC Scores
-```{r}
-tmodel1_train_auc <- AUC_calculator(predict(tmodel1, newdata=youtube_train), youtube_train[,target_column])
-cat('This model\'s AUC score on the training set is',tmodel1_train_auc, "\n")
 
-#test set AUC score
+Performance
+```{r}
+# train set AUC score
+tmodel1_train_auc <- AUC_calculator(predict(tmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('tmodel1\'s AUC score on the training set is',tmodel1_train_auc, "\n")
+
+# test set AUC score
 tmodel1_test_auc <- AUC_calculator(predict(tmodel1, newdata=youtube_test), youtube_test[,target_column])
-cat('This model\'s AUC score on the testing set is',tmodel1_test_auc)
-```
-##### c. Print the performance table
-分析第一个决策树模型
-```{r}
+cat('tmodel1\'s AUC score on the testing set is',tmodel1_test_auc)
+
+# performance table
 pretty_perf_table(tmodel1,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
-```
-##### d. Print the ROC plot
-```{r}
+
+# log likelihood
+cat("tmodel1 Log Likelihood:", calculateLogLikelihood(tmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+#Print the ROC plot
 pred_test_roc_tmodel1 <- predict(tmodel1, newdata=youtube_test)
 pred_train_roc_tmodel1 <- predict(tmodel1, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel1, youtube_test[[target_column]],
          pred_train_roc_tmodel1, youtube_train[[target_column]])
 ```
 #### 4.5.2.2 Build Descision Tree Model for feature combination 2
-##### a. Build the model
-
+Build the model
 ```{r}
-library(rpart)
-library(rpart.plot)
 formula_Var2 <- paste(target_column,'> 0 ~ ', paste(feature_combine2, collapse=' + '), sep='')
 tmodel2 <- rpart(formula_Var2, data=youtube_train)
 
 summary(tmodel2)
 
-# 可视化决策树
+# visualization decision tree 
 rpart.plot(tmodel2)
 ```
-##### b. Calculate this Model's AUC Scores
-先算一下AUC得分
+
+Performance
 ```{r}
+# train set AUC score
 tmodel2_train_auc <- AUC_calculator(predict(tmodel2, newdata=youtube_train), youtube_train[,target_column])
-cat('This model\'s AUC score on the training set is',tmodel2_train_auc, "\n")
+cat('tmodel2\'s AUC score on the training set is',tmodel2_train_auc, "\n")
 
-#test set AUC score
+# test set AUC score
 tmodel2_test_auc <- AUC_calculator(predict(tmodel2, newdata=youtube_test), youtube_test[,target_column])
-cat('This model\'s AUC score on the testing set is',tmodel2_test_auc)
-```
+cat('tmodel2\'s AUC score on the testing set is',tmodel2_test_auc)
 
-##### c. Print the performance table
-```{r}
+# performance table
 pretty_perf_table(tmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
-```
-##### d. Print the ROC plot
-```{r}
+
+# log likelihood
+cat("tmodel2 Log Likelihood:", calculateLogLikelihood(tmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# Print the ROC plot
 pred_test_roc_tmodel2 <- predict(tmodel2, newdata=youtube_test)
 pred_train_roc_tmodel2 <- predict(tmodel2, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel2, youtube_test[[target_column]],
@@ -1382,33 +1396,35 @@ plot_roc(pred_test_roc_tmodel2, youtube_test[[target_column]],
 ```
 
 #### 4.5.2.3 Build Descision Tree Model for feature combination 3
-##### a. Build the model
+Build the model
 ```{r build decision tree model,fig.width=15,fig.height=8}
 formula_Var3 <- paste(target_column,'> 0 ~ ', paste(feature_combine3, collapse=' + '), sep='')
 tmodel3 <- rpart(formula_Var3, data=youtube_train)
 
 summary(tmodel3)
 
-# 可视化决策树
+# visualization decision tree
 rpart.plot(tmodel3)
 
 ```
-##### b. Calculate this Model's AUC Scores
-```{r warning=FALSE}
+
+Performance
+```{r message=FALSE, warning=FALSE}
 # train set AUC score 
 tmodel3_pre_train_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_train), youtube_train[,target_column])
-cat('This model\'s AUC score on the training set is',tmodel3_pre_train_auc, "\n")
+cat('tmodel3\'s AUC score on the training set is',tmodel3_pre_train_auc, "\n")
 
-#test set AUC score
+# test set AUC score
 tmodel3_pre_test_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_test), youtube_test[,target_column])
-cat('This model\'s AUC score on the testing set is',tmodel3_pre_test_auc)
-```
-##### c. Print the performance table
-```{r}
+cat('tmodel3\'s AUC score on the testing set is',tmodel3_pre_test_auc)
+
+# performance table
 pretty_perf_table(tmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
-```
-##### d. Print the ROC plot
-```{r}
+
+# log likelihood
+cat("tmodel3 Log Likelihood:", calculateLogLikelihood(tmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# Print the ROC plot
 pred_test_roc_tmodel3 <- predict(tmodel3, newdata=youtube_test)
 pred_train_roc_tmodel3 <- predict(tmodel3, newdata=youtube_train)
 plot_roc(pred_test_roc_tmodel3, youtube_test[[target_column]],
@@ -1419,46 +1435,211 @@ plot_roc(pred_test_roc_tmodel3, youtube_test[[target_column]],
 Using only one method for feature selection may have limitations, so use a combination of two methods to select one or more features that are most suitable for model prediction.
 Reasons for choosing to use logistic regression: Logistic regression is a linear model, and the magnitude and direction of the model parameters (coefficients) can provide an intuitive understanding of the impact of features on the target variable. This helps explain the model's predictions. And by observing the coefficients of logistic regression, the importance of each feature to the target variable can be estimated. Features with larger absolute values of coefficients have a more significant impact on the target variable. And logistic regression can automatically select the most relevant features, and the coefficients of irrelevant features can be shrunk to zero by adjusting the regularization term (such as L1 regularization). This helps reduce dimensionality and reduce model complexity.[Hastie2009]
 The independent variable is binary which 1 represent high income level and 0 represents low income level. We need to choose the binary logistic regression.
-### 4.6.1 Build Logistic Regression for all features
-```{r}
-lrmodel1 <- glm(as.formula(paste("binary_class ~ ", paste(c(categorical_independent_variables, numeric_independent_variables), collapse = ' + '))), data = train_data, family = "binomial")
+### 4.6.1 Build Logistic Regression model for all features
+```{r warning=FALSE}
+lrmodel1 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, family = "binomial")
+summary(lrmodel1)
 ```
 
-```{r warning=FALSE}
-selVars <- c("channel_type_status","category","subscribers","video_views","uploads","created_year","subs_engagement","uploads_frequency","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","video_views_increasing_rate","channel_age_adjusted_income","country_status" )
-deviance_formula <- paste(target_column, '>0 ~ ', paste(selVars, collapse=' + '), sep='')
-cat(deviance_formula)
-cat("Feature dimension = ", length(selVars))
-gmodel <- glm(as.formula(deviance_formula), data=youtube_train, family=binomial(link='logit'))
-summary(gmodel)
+Performance
+```{r}
+# train set AUC score 
+lrmodel1_pre_train_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel1\'s AUC score on the training set is',lrmodel1_pre_train_auc, "\n")
+
+# test set AUC score
+lrmodel1_pre_test_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel1\'s AUC score on the testing set is',lrmodel1_pre_test_auc)
+
+# performance table
+pretty_perf_table(lrmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+
+# log likelihood
+cat("lrmodel1 Log Likelihood:", calculateLogLikelihood(lrmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# print ROC plot
+pred_test_roc_lrmodel1 <- predict(lrmodel1, newdata=youtube_test)
+pred_train_roc_lrmodel1 <- predict(lrmodel1, newdata=youtube_train)
+plot_roc(pred_test_roc_lrmodel1, youtube_test[[target_column]],
+         pred_train_roc_lrmodel1, youtube_train[[target_column]])
 ```
+
+### 4.6.2 Build Logistic Regression model for feature combination 2
+```{r}
+lrmodel2 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, family = "binomial")
+summary(lrmodel2)
+```
+
+Performance
+```{r}
+# train set AUC score 
+lrmodel2_pre_train_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel2\'s AUC score on the training set is',lrmodel2_pre_train_auc, "\n")
+
+# test set AUC score
+lrmodel2_pre_test_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel2\'s AUC score on the testing set is',lrmodel2_pre_test_auc)
+
+# performance table
+pretty_perf_table(lrmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+
+# log likelihood
+cat("lrmodel2 Log Likelihood:", calculateLogLikelihood(lrmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# print ROC plot
+pred_test_roc_lrmodel2 <- predict(lrmodel2, newdata=youtube_test)
+pred_train_roc_lrmodel2 <- predict(lrmodel2, newdata=youtube_train)
+plot_roc(pred_test_roc_lrmodel2, youtube_test[[target_column]],
+         pred_train_roc_lrmodel2, youtube_train[[target_column]])
+```
+
+### 4.6.3 Build Logistic Regression model for feature combination 3
+```{r}
+lrmodel3 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, family = "binomial")
+summary(lrmodel3)
+```
+
+Performance
+```{r}
+# train set AUC score 
+lrmodel3_pre_train_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel3\'s AUC score on the training set is',lrmodel3_pre_train_auc, "\n")
+
+# test set AUC score
+lrmodel3_pre_test_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel3\'s AUC score on the testing set is',lrmodel3_pre_test_auc)
+
+# performance table
+pretty_perf_table(lrmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+
+# log likelihood
+cat("lrmodel3 Log Likelihood:", calculateLogLikelihood(lrmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# print ROC plot
+pred_test_roc_lrmodel3 <- predict(lrmodel3, newdata=youtube_test)
+pred_train_roc_lrmodel3 <- predict(lrmodel3, newdata=youtube_train)
+plot_roc(pred_test_roc_lrmodel3, youtube_test[[target_column]],
+         pred_train_roc_lrmodel3, youtube_train[[target_column]])
+```
+
 According to the result of the gmodel, the smaller the p value, the stronger the correlation between the feature and the dependent variable.We can find the result of 'age' feature is NA, which has the possibility of a strong correlation with other features. This situation is more complex to analyze, so we decided not to use this feature.
 Combining the analysis of likelihood and logistic regression, we finally selected the features that are strongly correlated with the independent variable earning_class: subscribers, subscribers_engagement, and urban_rate to build prediction model.
-## 4.6 Naïve Bayes Classifier
-### 4.6.1 Ensure features are independent of each other
+## 4.7 SVM classifier
+Because the SVM classifier can only be used to analyze numerical features, only numerical variables are used as model features in this classifier method.
 ```{r}
-library(caret)
+library(e1071)
+svm_model <- svm(as.formula(paste("earning_class ~ ", paste(numeric_independent_variables, collapse = ' + '))), data = youtube_train, kernel = "radial")
+summary(svm_model)
+```
 
-# 创建一个通用的函数来消除特征组合中的相互关系
-eliminate_feature_relations <- function(data, feature_combinations) {
-  # 从数据中提取每个特征组合的特征
-  combined_features <- lapply(feature_combinations, function(combination) {
-    data[, combination]
-  })
+Performance
+```{r}
+# train set AUC score 
+svm_model_pre_train_auc <- AUC_calculator(predict(svm_model, newdata=youtube_train), youtube_train[,target_column])
+cat('svm_model\'s AUC score on the training set is',svm_model_pre_train_auc, "\n")
 
-  # 连接特征组合以创建一个新数据框
-  combined_data <- do.call(cbind, combined_features)
+# test set AUC score
+svm_model_pre_test_auc <- AUC_calculator(predict(svm_model, newdata=youtube_test), youtube_test[,target_column])
+cat('svm_model\'s AUC score on the testing set is',svm_model_pre_test_auc)
 
-  # 使用主成分分析 (PCA) 来将特征组合投影到新的正交特征空间
-  pca_result <- prcomp(combined_data, center = TRUE, scale. = TRUE)
+# performance table
+pretty_perf_table(svm_model,youtube_train[numeric_independent_variables],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
 
-  # 从PCA结果中提取投影后的特征
-  projected_features <- pca_result$x
+# log likelihood
+cat("svm_model Log Likelihood:", calculateLogLikelihood(svm_model, youtube_test, positive_label, epsilon = 1e-6), "\n")
 
-  # 返回投影后的特征
-  return(projected_features)
-}
+# print ROC plot
+pred_test_roc_svm_model <- predict(svm_model, newdata=youtube_test)
+pred_train_roc_svm_model <- predict(svm_model, newdata=youtube_train)
+plot_roc(pred_test_roc_svm_model, youtube_test[[target_column]],
+         pred_train_roc_svm_model, youtube_train[[target_column]])
+```
 
+## 4.8 Random Forests classifier
+### 4.8.1 Build Random Forests model for feature combination 1
+```{r}
+rfmodel1 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, ntree = 100)
+summary(rfmodel1)
+```
+
+Performance
+```{r}
+# train set AUC score 
+rfmodel1_pre_train_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel1\'s AUC score on the training set is',rfmodel1_pre_train_auc, "\n")
+
+# test set AUC score
+rfmodel1_pre_test_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel1\'s AUC score on the testing set is',rfmodel1_pre_test_auc)
+
+# performance table
+pretty_perf_table(rfmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+
+# log likelihood
+cat("rfmodel1 Log Likelihood:", calculateLogLikelihood(rfmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# print ROC plot
+pred_test_roc_rfmodel1 <- predict(rfmodel1, newdata=youtube_test)
+pred_train_roc_rfmodel1 <- predict(rfmodel1, newdata=youtube_train)
+plot_roc(pred_test_roc_rfmodel1, youtube_test[[target_column]],
+         pred_train_roc_rfmodel1, youtube_train[[target_column]])
+```
+
+### 4.8.2 Build Random Forests model for feature combination 2
+```{r}
+rfmodel2 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, ntree = 100)
+summary(rfmodel2)
+```
+
+Performance
+```{r}
+# train set AUC score 
+rfmodel2_pre_train_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel2\'s AUC score on the training set is',rfmodel2_pre_train_auc, "\n")
+
+# test set AUC score
+rfmodel2_pre_test_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel2\'s AUC score on the testing set is',rfmodel2_pre_test_auc)
+
+# performance table
+pretty_perf_table(rfmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+
+# log likelihood
+cat("rfmodel2 Log Likelihood:", calculateLogLikelihood(rfmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# print ROC plot
+pred_test_roc_rfmodel2 <- predict(rfmodel2, newdata=youtube_test)
+pred_train_roc_rfmodel2 <- predict(rfmodel2, newdata=youtube_train)
+plot_roc(pred_test_roc_rfmodel2, youtube_test[[target_column]],
+         pred_train_roc_rfmodel2, youtube_train[[target_column]])
+```
+### 4.8.2 Build Random Forests model for feature combination 3
+```{r}
+rfmodel3 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, ntree = 100)
+summary(rfmodel3)
+```
+
+Performance
+```{r}
+# train set AUC score 
+rfmodel3_pre_train_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel3\'s AUC score on the training set is',rfmodel3_pre_train_auc, "\n")
+
+# test set AUC score
+rfmodel3_pre_test_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel3\'s AUC score on the testing set is',rfmodel3_pre_test_auc)
+
+# performance table
+pretty_perf_table(rfmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+
+# log likelihood
+cat("rfmodel3 Log Likelihood:", calculateLogLikelihood(rfmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+
+# print ROC plot
+pred_test_roc_rfmodel3 <- predict(rfmodel3, newdata=youtube_test)
+pred_train_roc_rfmodel3 <- predict(rfmodel3, newdata=youtube_train)
+plot_roc(pred_test_roc_rfmodel1, youtube_test[[target_column]],
+         pred_train_roc_rfmodel1, youtube_train[[target_column]])
 ```
 
 # Part 5 Cluster
