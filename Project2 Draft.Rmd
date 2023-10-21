@@ -1452,7 +1452,7 @@ lrmodel1_pre_test_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_test),
 cat('lrmodel1\'s AUC score on the testing set is',lrmodel1_pre_test_auc)
 
 # performance table
-pretty_perf_table(lrmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+pretty_perf_table(lrmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine1],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("lrmodel1 Log Likelihood:", calculateLogLikelihood(lrmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
@@ -1481,7 +1481,7 @@ lrmodel2_pre_test_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_test),
 cat('lrmodel2\'s AUC score on the testing set is',lrmodel2_pre_test_auc)
 
 # performance table
-pretty_perf_table(lrmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+pretty_perf_table(lrmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("lrmodel2 Log Likelihood:", calculateLogLikelihood(lrmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
@@ -1543,7 +1543,7 @@ svm_model_pre_test_auc <- AUC_calculator(predict(svm_model, newdata=youtube_test
 cat('svm_model\'s AUC score on the testing set is',svm_model_pre_test_auc)
 
 # performance table
-pretty_perf_table(svm_model,youtube_train[numeric_independent_variables],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+pretty_perf_table(svm_model,youtube_train[numeric_independent_variables],youtube_train[,target_column] == positive_label,youtube_test[numeric_independent_variables],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("svm_model Log Likelihood:", calculateLogLikelihood(svm_model, youtube_test, positive_label, epsilon = 1e-6), "\n")
@@ -1573,7 +1573,7 @@ rfmodel1_pre_test_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_test),
 cat('rfmodel1\'s AUC score on the testing set is',rfmodel1_pre_test_auc)
 
 # performance table
-pretty_perf_table(rfmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+pretty_perf_table(rfmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine1],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("rfmodel1 Log Likelihood:", calculateLogLikelihood(rfmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
@@ -1602,7 +1602,7 @@ rfmodel2_pre_test_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_test),
 cat('rfmodel2\'s AUC score on the testing set is',rfmodel2_pre_test_auc)
 
 # performance table
-pretty_perf_table(rfmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
+pretty_perf_table(rfmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
 
 # log likelihood
 cat("rfmodel2 Log Likelihood:", calculateLogLikelihood(rfmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
