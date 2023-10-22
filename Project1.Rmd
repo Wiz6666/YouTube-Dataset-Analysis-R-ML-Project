@@ -1,0 +1,685 @@
+---
+title: "CITS4009-project1"
+author: "Wiz ZHANG(SID:23210735)"
+Video_link: https://youtu.be/4MYavfIYfKo
+output:   
+  html_document:
+    highlight: haddock
+    theme: cosmo
+    code_folding: hide
+---
+```{r setup, include=FALSE}
+#Set all code chunks to display their R code by default
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Part1
+Introduction
+The data set analyzed can be obtained from Kaggle platform. It comes from the "Global YouTube Statistics 2023".
+https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023
+
+A collection of YouTube giants, this dataset offers a perfect avenue to analyze and gain valuable insights from the luminaries of the platform. With comprehensive details on top creators' subscriber counts, video views, upload frequency, country of origin, earnings, and more, this treasure trove of information is a must-explore for aspiring content creators, data enthusiasts, and anyone intrigued by the ever-evolving online content landscape. Immerse yourself in the world of YouTube success and unlock a wealth of knowledge with this extraordinary dataset.[1]
+
+
+## Part2 Data loading, overview and set up
+
+### 2.1 Load required R packages
+ggplot2, dplyr, tidyr and other data visualization and data organization packages
+```{r Library, echo=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(ggthemes)
+library(numform)
+library(treemapify)
+library(timeDate)
+library(lubridate)
+library(reshape2)
+library(ca)
+library(skimr)
+library(janitor)
+library(flextable)
+library(shiny)
+library(leaflet)
+library(maps)
+library(wordcloud)
+library(RColorBrewer)
+library(scales)
+```
+
+### 2.2 Set theme 
+Set theme for following charts, makes them look same style.
+```{r Theme Maker}
+Project_theme <- theme(
+  panel.background = element_rect(fill = "#FFFBDC"),  # Light yellow background
+  panel.grid.major = element_line(color = "#FFE4A1"), # Light orange major grid lines
+  panel.grid.minor = element_blank(), # Remove minor grid lines
+  plot.title = element_text(size = 18, hjust = 0.5, color = "darkblue"),  # Title color and size
+  axis.title = element_text(size = 16, color = "darkblue"),  # Axis title color and size
+  axis.text = element_text(size = 14, color = "black"),   # Axis text color and size
+  legend.title = element_text(size = 16, color = "darkblue"), # Legend title color and size
+  legend.text = element_text(size = 14, color = "black"),   # Legend text color and size
+  legend.background = element_rect(fill = "#FFFBDC"),  # Legend background color
+  plot.background = element_rect(fill = "#FFFBDC")   # Background color of the entire plot
+)
+```
+
+### 2.3 Load the main data
+```{r readfile, warning=FALSE}
+Data_path <- 'Global YouTube Statistics.csv'
+Youtube <- read.csv(Data_path)
+```
+
+### 2.4 Use str command to analyze the data
+```{r str,results='hide', echo=TRUE, warning=FALSE}
+str(Youtube)
+```
+The "Global YouTube Statistics" dataset contains 995 observations and 28 variables. The variables can be summarized as follows:
+Numeric Variables:
+subscribers: Number of subscribers to the YouTube channel.
+video_views: Total number of video views.
+video_views_rank: Ranking based on video views.
+video_views_for_the_last_30_days: Total video views in the last 30 days.
+lowest_monthly_earnings: Lowest monthly earnings in USD.
+highest_monthly_earnings: Highest monthly earnings in USD.
+lowest_yearly_earnings: Lowest yearly earnings in USD.
+highest_yearly_earnings: Highest yearly earnings in USD.
+subscribers_for_last_30_days: Subscribers gained in the last 30 days.
+created_year: Year when the YouTube channel was created.
+created_month: Month when the YouTube channel was created.
+created_date: Date when the YouTube channel was created.
+Gross.tertiary.education.enrollment.rate: Gross tertiary education enrollment rate.
+Population: Population of the country.
+Unemployment.rate: Unemployment rate in the country.
+Urban_population: Urban population of the country.
+Latitude: Latitude coordinate of the country.
+Longitude: Longitude coordinate of the country.
+
+Integer Variables:
+rank: Rank of the YouTube channel.
+uploads: Number of video uploads.
+country_rank: Ranking based on country.
+channel_type_rank: Ranking based on channel type.
+
+Character Variables:
+Youtuber: Name of the YouTube channel.
+category: Category of the YouTube channel.
+Title: Title of the YouTube channel..
+Country: Country of the YouTube channel..
+Abbreviation: Abbreviation of the country..
+channel_type: Type of the YouTube channel..
+
+
+### 2.5 Use summary command to analyze data. 
+
+I use skimr here, which is similar to summary command but it shows more descriptive statistics for numeric variables than summary command.
+```{R Skimr Summary,results='hide', echo=TRUE, warning=FALSE}
+skimr::skim(Youtube) %>%
+  flextable::flextable() 
+```
+
+Calculate Right skewness numbers and left skewness numbers
+```{r Skewness Calculator}
+calculate_skewness_percentage <- function(dataframe) {
+  #initialize function variables
+  right_skewed_count <- 0
+  left_skewed_count <- 0
+  column_names <- names(dataframe)
+  #count the numbers with loops
+  for (column in column_names) {
+    if (is.numeric(dataframe[[column]])) {
+      median_value <- median(dataframe[[column]], na.rm = TRUE)
+      mean_value <- mean(dataframe[[column]], na.rm = TRUE)
+      if (mean_value > median_value) {
+        right_skewed_count <- right_skewed_count +1
+      } else if (mean_value < median_value) {
+        left_skewed_count <- left_skewed_count +1
+      }
+    }
+  }
+  #calculate percentage with the count result
+  right_percentage <- round((right_skewed_count / ncol(dataframe)) * 100, 2)
+  left_percentage <- round((left_skewed_count / ncol(dataframe)) * 100, 2) 
+  
+  return(list(right_percentage, left_percentage))  
+}
+
+# Use function to get the calculation result
+results <- calculate_skewness_percentage(Youtube)
+cat("\n")
+cat("Percentage of right-skewed columns is:", results[[1]], "%\n")
+cat("Percentage of left-skewed columns is:", results[[2]], "%\n")
+
+```
+  Based on the result of Skewness test, The percentage of rigt-skewed columns is 50%, and the percentage of left-skewed columns is only 21.43%, so columns data is character so we can't make the skewness test.
+  Therefore, most of the data is right skewed. Such as subscribers; uploads; lowest_monthly_earnings.
+
+### 2.6 Use head command to analyze data.
+```{r head, results='hide', echo=TRUE, warning=FALSE}
+head(Youtube,n=100)
+```
+Base on the standard output, we can see that subscribers shows how many people subscribe the Youtuber. The Title is the same as Youtuber, we need to figure out why it is the same but in two different columns. the Music Youtuber has 119000000 subsribers but only 0 uploads , so we need to make data cleaning later.
+
+
+
+## Part3 Initial data cleanning and transformations
+
+We need to proceed initial data cleaning and transformations before our analysis. 
+
+
+
+### 3.1 Check column names and make adjustments.
+
+3.1.1 Use names function check names first , then make the decision.
+```{r names,results='hide'}
+names(Youtube)
+```
+3.1.2 Use janitor package and rename function adjust column names to ensure uniform formatting. 
+
+janitor::clean_names() is a very popular function in the package whose main purpose is to convert the column names of dataframes into a clean, uniform format. Here is the main logic and rules of this function:
+1.All characters to lowercase
+2.Spaces are converted to underscores
+3.Non-alphanumeric characters are removed
+4.Numbers before text moved to the end
+5.Underline after keyword in R
+```{r Name Changer}
+Youtube <- janitor::clean_names(Youtube)
+
+# Print new names to ensure everything good.
+print(colnames(Youtube))
+```
+
+### 3.2Inspect&Adjust data types
+Use sapply function to check data types, adjust wrong data typs.
+```{r Data type,results='hide', echo=TRUE, warning=FALSE}
+data_types <- sapply(Youtube, class)
+print(data_types)
+
+data_sample <- sapply(Youtube,head)
+data_sample
+```
+The output looks fine, so we can improve the data types after the data cleaning work.
+
+
+
+### 3.3 Handle Missing value
+3.3.1 Backup the original data, build up a new variable called "Youtube_cleaned"
+```{r Backup}
+Youtube_cleaned <- Youtube
+```
+
+
+3.3.2 identify numeric and character type,change 0 and "nan" to NA.
+kill the rows with at least 50%(14) of NA in 28 variables.
+```{r Kill 0&NA and delete NA}
+#Change 0 or 'nan' or 'NaN' to NA value
+Youtube[Youtube == 0|Youtube=='nan'|Youtube == "NaN"] <- NA
+#Count how many NA values in each row
+Youtube$na_count <- rowSums(is.na(Youtube))
+# Only keep the rows with NA value number less than 14. 
+Youtube_cleaned <- Youtube[Youtube$na_count <14,]
+```
+
+3.3.3 Calculate how many missing values in each column, handle them.
+```{r col_NA calculator}
+# Calculate missing value number
+count_missing <- function(df) {
+  sapply(df, FUN = function(col) sum(is.na(col)) )
+}
+# Calculate percentage of missing value
+percentage_missing <- function(df) {
+  sapply(df, FUN = function(col) round(sum(is.na(col)) / length(col) * 100, 2) )
+}
+
+nacounts <- count_missing(Youtube_cleaned)
+napercents <- percentage_missing(Youtube_cleaned)
+
+# output the result
+hasNA = which(nacounts > 0)
+data.frame(Column = names(nacounts[hasNA]), 
+           Missing_Values = nacounts[hasNA], 
+           Percentage_Missing = napercents[hasNA])
+```
+The column which has more than 10% missing value is "subscribers_for_last_30_days"
+
+3.3.4 Use Medium to replace the NA
+  Base on the result of skewness test, most of data is right skewed, so we should use medium which is better than using mean value, because mean value would change the right skewed structure.
+Here, I change the columns where more than 10% of data is NA.
+```{r Fill with medium}
+change_to_median_cols <- c("subscribers_for_last_30_days")
+for (col in change_to_median_cols) {
+    median_val <- median(Youtube_cleaned[[col]], na.rm = TRUE)
+    Youtube_cleaned[[col]][is.na(Youtube_cleaned[[col]])] <- median_val
+}
+```
+
+3.3.5 Change the NA in character_columns into "Missing"
+```{r Missing changer}
+character_columns <- c("youtuber","category","title","country","abbreviation","channel_type","created_month")
+  
+for (col in character_columns) {
+  Youtube_cleaned[[col]][is.na(Youtube_cleaned[[col]])] <- "Missing"
+}
+```
+
+
+### 3.4 Handle repeating lines
+```{r Inpsect repeat lines}
+# Use unique function handle repeating lines
+Youtube_cleaned_unique <- unique(Youtube_cleaned)
+Youtube_cleaned <- unique(Youtube_cleaned)
+```
+
+
+### 3.5 Change the data type from character to factor for 'category', 'country', 'channel type'
+```{r Factor type}
+factor_columns <- c("category", "country", "channel_type")
+#Use mutate adjust factor_columns, change then to factor type
+Youtube_cleaned <- Youtube_cleaned %>%
+  mutate(across(all_of(factor_columns), as.factor))
+```
+
+
+### 3.6 Add missing value indicator for each column if the value is NA mark 1 either mark 0
+```{r missing value indicator}
+for (col in names(Youtube_cleaned)) {
+  indicator_name <- paste0(col, "_NA_indicator")
+  Youtube_cleaned[[indicator_name]] <- as.integer(is.na(Youtube_cleaned[[col]]))
+}
+```
+
+
+
+### 3.7 Add new column which might be used in the future.
+3.7.1 Add full time column
+```{r full time}
+# First, ensure that the 'created_date' column is in integer format
+Youtube_cleaned$created_date <- as.integer(as.character(Youtube_cleaned$created_date))
+
+# Define a vector of month names
+month_names <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+# Create a vector of two-digit month numbers using sprintf
+month_numbers <- sprintf("%02d", 1:12)
+
+# Create a mapping between month names and month numbers
+month_mapping <- setNames(month_numbers, month_names)
+
+# Update the 'full_date' column by combining year, month, and day
+Youtube_cleaned$full_date <- as.Date(paste(Youtube_cleaned$created_year, 
+                                   Youtube_cleaned$created_month %>% match(month_names) %>% month_mapping[.],
+                                   sprintf("%02d", Youtube_cleaned$created_date), 
+                                   sep = "-"), 
+                             format = "%Y-%m-%d")
+```
+
+
+
+
+## Part4 Analysis
+
+
+
+### Figure 1
+Distribution of YouTube Channel Subscribers
+```{r histogrm, fig.width=15}
+# Make a new variable, do not use original data
+subscribers_analysis <- Youtube_cleaned
+
+#Inspect outliers
+outliers <- boxplot.stats(subscribers_analysis$subscribers)$out
+
+# Change outliers into NA value
+subscribers_analysis$subscribers[subscribers_analysis$subscribers %in% outliers] <- NA
+#delete NA
+subscribers_analysis <- na.omit(subscribers_analysis)
+# Draw histogram
+ggplot(subscribers_analysis, aes(x = subscribers)) +
+  geom_histogram(binwidth = 5000, color = "black") + 
+  labs(title = "Distribution of YouTube Channel Subscribers",
+       x = "Number of Subscribers", 
+       y = "Number of Channels") +
+  Project_theme +
+  #Ensure X axis number is not scientific type
+  scale_x_continuous(labels = function(x) format(x, scientific = FALSE))
+```
+The histogram has only one peak, indicating that this number of subscribers is the most common among channels. The distribution is right-skewed, suggesting that most YouTubers have only a small number of subscribers, but a few YouTubers are very popular and have a large number of subscribers.
+
+
+
+
+
+
+
+### Figure2 Heatmap of Channel Categories by Country
+```{r Heatm}
+channel_country <- table(Youtube_cleaned$category, Youtube_cleaned$country)
+# Convert channel_country to a data frame
+channel_df <- as.data.frame(channel_country)
+colnames(channel_df) <- c("Category", "Country", "Freq")
+
+# Get the top 50 countries based on total frequency
+top_50_countries <- channel_df %>%
+  group_by(Country) %>%
+  summarize(total_freq = sum(Freq)) %>%
+  arrange(desc(total_freq)) %>%
+  head(50) %>%
+  pull(Country)
+
+# Filter the data to include only the top 50 countries
+top_channel_df <- channel_df %>% 
+  filter(Country %in% top_50_countries)
+
+# Draw the heatmap
+ggplot(top_channel_df, aes(Category, Country)) + 
+  geom_tile(aes(fill = Freq)) +
+  labs(title = "Heatmap of Channel Categories by Top 50 Countries") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6)) +
+  theme(axis.text.y = element_text(size = 5)) +
+  coord_fixed(ratio = 0.5)
+```
+
+The color represents the number of channels of a particular category in each country. The darker the color, the more channels of that category exist in a specific country. 
+I first try to show all the counties, but most of the countries has too less viewers and they are all too dark, so I decide to show the top 50 countries, which would be more meaningful.
+The lightest country is the United States, followed by India, reflecting that the number of YouTube viewers in the United States and India is higher. People from almost every country prefer to watch the categories of Entertainment, Music, and People & Blogs. Travel & Events and Autos & Vehicles are the categories with the least viewership across all countries.
+
+
+
+
+
+
+### Figure 3 "Interactive Shiny plots"
+Check the outliers of each columns.
+```{r Shiny}
+#Define the selection set for boxplot 
+Boxplot_choices <- c("rank", "video_views_rank", "country_rank", "channel_type_rank", "video_views_for_the_last_30_days",
+"lowest_monthly_earnings", "highest_monthly_earnings", "lowest_yearly_earnings",
+"highest_yearly_earnings", "subscribers_for_last_30_days", "created_year", "created_date",
+"gross_tertiary_education_enrollment", "population", "unemployment_rate",
+"urban_population", "latitude", "longitude")
+
+# Get the actual country count data
+country_counts <- as.data.frame(table(Youtube_cleaned$country))
+
+# Map data
+world_map <- map_data("world")
+#Set centroids for each country
+country_centroids <- world_map %>%
+  group_by(region) %>%
+  summarise(long = mean(long), lat = mean(lat))
+
+# Merge country_counts with centroids
+merged_data <- merge(country_counts, country_centroids, by.x = "Var1", by.y = "region", all.x = TRUE)
+
+#Get Youtube term matrix based on user's choice for Word Cloud Plot
+getYoutubeTermMatrix <- function(selection) {
+  if(selection == "Country") {
+    terms <- table(Youtube_cleaned$country)
+  } else if (selection == "Category") {
+    terms <- table(Youtube_cleaned$category)
+  } else if (selection == "Channel Type") {
+    terms <- table(Youtube_cleaned$channel_type)
+  }
+  print(terms)
+  return(terms)
+}
+
+
+
+
+# Shiny UI
+ui <- fluidPage(
+  #The code for vertical layout
+  verticalLayout(
+    #Using tabsetPannel to create tabs for each plot[Reference 3]
+    tabsetPanel(type = "tabs",
+                #First, BoxPlot
+                tabPanel("Boxplot",
+                         titlePanel("Boxplot Visualization"),
+                         verticalLayout(
+                           wellPanel(
+                             #Meun to select a column for boxplot
+                             selectInput(
+                               "selectedColumn",
+                               "Choose a Column for Boxplot",
+                               choices = Boxplot_choices ,
+                             )
+                           ),
+                           mainPanel(
+                             plotOutput(outputId = "box_plot")
+                           )
+                         )
+                ),
+                #Second, Faceted Scatter Plot
+                tabPanel("facetedScatter",
+                         titlePanel("Faceted Scatter Plot"),
+                         verticalLayout(
+                           wellPanel(
+                             #Menu to choose facet variable
+                             selectInput(
+                               "facetSelect", "Facet By:",
+                               choices = c("Category", "Country")
+                             )
+                           ),
+                           mainPanel(
+                             plotOutput(outputId = "facetedScatter",width = "800px",height = "2000px")
+                           )
+                         )
+                ),
+                #Third, Map plot
+                tabPanel("Geographical Distribution",
+                         titlePanel("Geographical Distribution"),
+                         verticalLayout(
+                           #Sliders to control latitude&longitude
+                           sliderInput("latRange", "Latitude Range:", min = -90, max = 90, value = c(-90, 90)),
+                           sliderInput("longRange", "Longitude Range:", min = -180, max = 180, value = c(-180, 180))
+                         ),
+                         mainPanel(
+                           plotOutput(outputId = "map_plot",width = "800px",height = "500px")
+                         )
+                ),
+                #Forth, Scarlet Plot
+                tabPanel("Category Scarlet Plot",
+                         titlePanel("Relationship between Category and Variable"),
+                         sidebarLayout(
+                           sidebarPanel(
+                             #Menu to choose variable
+                             selectInput(
+                               "numeric_var",
+                               "Select Numeric Variable:",
+                               choices = c("subscribers", "video views")
+                             )
+                           ),
+                           mainPanel(
+                             plotOutput("scarlet_plot", width = "600px", height = "800px")
+                           )
+                         )
+                ),
+                #Fifth, Density Plot
+                tabPanel("Earning density plot",
+                         titlePanel("Density Plot of earning"),
+                         sidebarLayout(
+                           sidebarPanel(
+                             #Menu to select the 4 earning variables
+                             selectInput(
+                               "earning_period",
+                               "Select earning period(log)",
+                               choices = c(
+                                 "Lowest yearly earning" = "lowest_yearly_earnings",
+                                 "Highest yearly earning" = "highest_yearly_earnings",
+                                 "Lowest monthly earning" = "lowest_monthly_earnings",
+                                 "Highest monthly earning" = "highest_monthly_earnings"
+                                 )
+                               )
+                             ),
+                           mainPanel(plotOutput("density_plot"))
+                           )
+                         ),
+                #Sixth, Word Cloud Plot
+                tabPanel("Word Cloud",
+               titlePanel("World Cloud"),
+               sidebarLayout(
+                 sidebarPanel(
+                   #Menu to select category for word cloud plot
+                   selectInput("selection", "Choose a category", choices = c("Channel Type","Country","Category")),
+                   #Button to update the word cloud
+                   actionButton("update", "Change"),
+                   #Horizontal rule for UI separation
+                   hr(),
+                   #Slider to control words freq
+                   sliderInput("freq", "Minimum Frequency:", min = 1, max = 50, value = 1),
+                   #Slider to control words num
+                   sliderInput("max", "Maximum Number of Words:", min = 1, max = 300, value = 300)
+                 ),
+                 mainPanel(plotOutput("wordcloud_plot"))
+               )
+      )
+                )
+    )
+  )
+
+
+
+# Shiny server
+server <- function(input, output) {
+
+  # Define the function for killing outliers before drawing plots
+  remove_outliers <- function(data, column_name) {
+    #Identify outliers for specified column
+    outliers <- boxplot.stats(data[[column_name]])$out
+    #Replace outliers with NA
+    data[[column_name]][data[[column_name]] %in% outliers] <- NA
+    return(data)
+  }
+
+  #Code for Box Plot
+  output$box_plot <- renderPlot({
+    #Remove outliers first
+    Youtube_no_outliers <- remove_outliers(Youtube_cleaned, input$selectedColumn)
+    #Create a boxplot for chosen column
+    p <- ggplot(Youtube_no_outliers, aes_string(y = input$selectedColumn)) +
+      geom_boxplot() +
+      labs(title = paste("Boxplot of", input$selectedColumn)) +
+      Project_theme
+    print(p)
+  })
+
+  # Code for Faceted Scatter Plot
+  output$facetedScatter <- renderPlot({
+    #Set facet variable base on user input
+    if (input$facetSelect == "Category") {
+      facet_var <- "category"
+    } else if (input$facetSelect == "Country") {
+      facet_var <- "country"
+    } 
+    #Create scatter plot with faceting
+    p <- ggplot(Youtube_cleaned, aes(x = subscribers, y = video_views)) +
+      geom_point(alpha = 0.5) +
+      facet_wrap(as.formula(paste("~", facet_var)), ncol = 2) +
+      labs(title = "Faceted Scatter plot of Subscribers vs Video Views") +
+      Project_theme +
+      #Log transform for better visualzation , this is better than scientific notation I use GPT for helping me learn here.
+      scale_x_continuous(trans = "log10", breaks = trans_breaks("log10", function(x) 10^x), labels = trans_format("log10", math_format(10^.x))) 
+    print(p)
+  })
+  
+  
+  #Code for Map Plot
+  output$map_plot <- renderPlot({
+    #Filter the data based on selected latitude&longtitude ranges
+    filtered_data <- merged_data %>% 
+      filter(lat >= input$latRange[1] & lat <= input$latRange[2] & long >= input$longRange[1] & long <= input$longRange[2])
+    #Create the map plot with points which shows YouTubers' locations
+    ggplot() + 
+      geom_polygon(data = world_map, aes(x = long, y = lat, group = group), fill = "white", color = "grey") +
+      geom_point(data = filtered_data, aes(x = long, y = lat, size = Freq), color = "blue") + 
+      Project_theme + 
+      scale_size_continuous(name = "Number of YouTubers", range = c(1, 5))
+  })
+  
+  
+  #Code for Scarlet Plot
+  output$scarlet_plot <- renderPlot({
+    #X axis should be the choosed variable
+    x_var <- switch(input$numeric_var,
+                    "subscribers" = "subscribers",
+                    "video views" = "video_views")
+    #Create scarlet plot here
+    ggplot(Youtube_cleaned, aes_string(x = x_var, y = "category", color = "category")) +
+      geom_point() +
+      ggtitle(paste("Relationship between", input$numeric_var, "and Category")) +
+      ylab("Channel Type") +
+      xlab(input$numeric_var) +
+      Project_theme +
+      #Log transform for better visualzation , this is better than scientific notation I use GPT for helping me learn here.[Reference 4]
+      scale_x_continuous(trans = "log10", breaks = trans_breaks("log10", function(x) 10^x), labels = trans_format("log10", math_format(10^.x)))
+  
+  })
+  
+  
+  #Code for Density Plot
+  output$density_plot <- renderPlot({
+    #Remove outliers first
+    Youtube_no_outliers <- remove_outliers(Youtube_cleaned, input$earning_period)
+    #Log transform for better visualzation , this is better than scientific notation
+    selected_data <- log(Youtube_no_outliers[[input$earning_period]])
+    ggplot(Youtube_no_outliers, aes(x=selected_data))+
+      geom_density(fill = "blue", alpha=0.5) +
+      labs(title = paste("Density Plot of", input$earning_period),
+           x = "Earnings (log-scale)",
+           y = "Density")
+  })
+
+  #Generating the Word Cloud[Reference 2]
+  terms <- reactive({
+    input$update
+    isolate({
+      withProgress({
+        setProgress(message = "Processing corpus...")
+        getYoutubeTermMatrix(input$selection)
+      })
+    })
+  })
+
+  wordcloud_rep <- repeatable(wordcloud)
+  
+
+  output$wordcloud_plot <- renderPlot({
+    v <- terms()
+    wordcloud_rep(names(v), as.numeric(v), scale = c(10,1),
+                  min.freq = input$freq, max.words = input$max,
+                  colors = brewer.pal(8, "Dark2"))
+  })
+}
+shinyApp(ui, server)
+```
+### 1.Boxplot
+  Most of the variables have really high outliers but some of the outliers is fine as the data is from the top 995 YouTubers, sometimes it is reasonable that some top YouTuber may have extremely higher video views; earnings than average level.
+  
+### 2.facetedScatter
+  For the faceted scatter plot of subscribers and video views, most of them don't show a correlation, only Entertainment, Gaming, Film&Animation, and Music show a clear linear correlation, which, based on the heat map above, may be due to the fact that these categories have the most subscriptions, and the data just happens to be the top 995 YouTubers leading to this.
+  For the Country and Video Views graphs, again not much correlation is shown, except for India, Brazil and the US, which show a linear correlation, due to the fact that these countries have the most subscribers.
+
+### 3.Geographical Distribution
+  We can find that most YouTubers are located between longitude 0-180, which is the northern hemisphere, showing that the country with the most YouTubers is India, followed by Brazil.
+
+### 4.Category Scarlet Plot
+  For Subscribers vs. channel type, Music and Entertainment channels have the most subscribers, and Gaming and People & Blogs channels have fewer subscribers.
+  For Number of video views vs. channel type, Entertainment and music channels have the highest number of views, while Howto & Style channels have a wide distribution of views.
+  
+### 5.Earning density plot
+  Most channels earn less than 100k dollar. A small number of channels earn over 1 million dollar. We can find that the median income of most YouTubers for all 4 variables is unusually high and satisfies a normal distribution，highly right skewed.
+  
+### 6.Word Cloud
+  For Channel Type, Music is the most present, followed by People and Games, and then Education, Comedy and Film, which are the most present channel types for YouTubers in the data.
+  In terms of Country, the most popular country is India, followed by Brazil and the United Kingdom, where most Youtubers are located.
+  In terms of Category, Music is also the most frequent channel, followed by Gaming and Film&Animation, which is the category that produces the most videos in the data.
+
+
+
+### Reference
+1. Nidula Elgiriyewithana. (2023 Aug). Global YouTube Statistics 2023 https://www.kaggle.com/datasets/nelgiriyewithana/global-youtube-statistics-2023
+2. https://shiny.posit.co/r/gallery/start-simple/word-cloud/
+3. https://github.com/rstudio/shiny-examples/tree/main/006-tabsets
+4. GPT3.5 https://chat.openai.com/auth/login?next=/chat
