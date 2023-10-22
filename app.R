@@ -1,18 +1,4 @@
 
-
-#Set all code chunks to display their R code by default
-knitr::opts_chunk$set(echo = TRUE)
-
-# Part1 - Introduction
-
-## 1.1 - Project Background and Purpose
-
-## 1.2 Data Source and Characteristics
-
-# Part2 - Setup
-
-## 2.1 Load required R packages
-
 library(ggplot2)
 library(gridExtra)
 library(dplyr)
@@ -48,8 +34,6 @@ library(pander)
 library(e1071)
 library(randomForest)
 library(fpc)
-
-## 2.2 Set plot theme 
 project_theme <- theme(
   panel.background = element_rect(fill = "#FFFBDC"),  # Light yellow background
   panel.grid.major = element_line(color = "#FFE4A1"), # Light orange major grid lines
@@ -79,42 +63,26 @@ raw_data <- raw_data %>%
     yearly_earning_low = lowest_yearly_earnings,
     yearly_earning_high = highest_yearly_earnings,
     subs_last_30_days = subscribers_for_last_30_days,
-    tertiary_edu_enrollment = gross_tertiary_education_enrollment,
+    tertiary_edu_enrollment = gross_tertiary_education_enrollment
   )
 
-data_types <- sapply(raw_data,class)
-data_sample <- sapply(raw_data,head)
-rm(data_types, data_sample)
 raw_data[raw_data == 'nan' | raw_data == "NaN" | raw_data == 0] <- NA
+#Numeric columns
 raw_data <- raw_data |>
   mutate(across(where(is.numeric), ~ifelse(is.nan(.), NA, .)))
 
-count_missing <- function(df) {
-  sapply(df, FUN = function(col) sum(is.na(col)) )
-}
-# Calculate percentage of missing value
-percentage_missing <- function(df) {
-  sapply(df, FUN = function(col) round(sum(is.na(col)) / length(col) * 100, 2) )
-}
-nacounts <- count_missing(raw_data)
-napercents <- percentage_missing(raw_data)
-# output the result
-hasNA = which(nacounts > 0)
-data.frame(Column = names(nacounts[hasNA]), 
-           Missing_Values = nacounts[hasNA], 
-           Percentage_Missing = napercents[hasNA])
-rm(col,hasNA,nacounts,napercents)
 
 change_to_median_cols <- c("video_views",
 "uploads","video_views_rank","country_rank","channel_type_rank","video_views_last_30_days","monthly_earnings_low",	"monthly_earning_high","yearly_earning_low",	 "yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate","urban_population")
+
+
+
 for (col in change_to_median_cols) {
     median_val <- median(raw_data[[col]], na.rm = TRUE)
     raw_data[[col]][is.na(raw_data[[col]])] <- median_val
 }
 rm(col,median_val,change_to_median_cols)
 
-
- 
 character_columns <- c("category", "country","country_abbr","channel_type")
   
 for (col in character_columns) {
@@ -122,27 +90,17 @@ for (col in character_columns) {
 }
 rm(col,character_columns)
 
-
-
 raw_data <- raw_data %>%
   filter(!is.na(created_year) & !is.na(created_month) & !is.na(created_date) & created_year >= 2005)
 
-# Use unique function handle repeating lines
 raw_data_unique <- unique(raw_data)
 raw_data <- raw_data_unique
 rm(raw_data_unique)
 
-
-
-### 3.1.5 Handle outliers
-
-#### 3.1.5.1 classify variables
 numeric_vars <- raw_data[sapply(raw_data,is.numeric)]
 categorical_vars <- raw_data[sapply(raw_data,function(x) class(x) %in% c('factor','character'))]
 numeric_vars_name <- names(numeric_vars)
 categorical_vars_name <- names(categorical_vars)
-
-#### 3.1.5.2 Identify outliers
 
 # Define a function to detect outliers in the dataset
 detect_outliers <- function(data, method = "zscore", threshold = 3) {
@@ -172,9 +130,9 @@ detect_outliers <- function(data, method = "zscore", threshold = 3) {
 # Use the detect_outliers function to detect outliers in columns 1 to 18 of the Youtube_cleaned dataset
 find_outliers <- detect_outliers(raw_data[numeric_vars_name])
 # Print the detected outliers
-print(find_outliers)
-rm(find_outliers)
 
+
+#### 3.1.5.3 Winsorize outliers
 
 # Function to truncate values in specified columns that exceed a given percentile.
 truncate_tail <- function(data, column_names, percentile = 95) {
@@ -187,6 +145,7 @@ truncate_tail <- function(data, column_names, percentile = 95) {
   
   return(data)
 }
+
 # Apply the function to the first 18 columns of Youtube_cleaned.
 raw_data <- truncate_tail(raw_data, numeric_vars_name, percentile = 95)
 
@@ -204,32 +163,34 @@ detect_outliers_zscore <- function(data, column_names, threshold = 3) {
 
 # Detect outliers in the data after truncation using the function above
 outliers_count_after_truncate <- detect_outliers_zscore(raw_data, numeric_vars_name)
-print(outliers_count_after_truncate)
 rm(outliers_count_after_truncate,numeric_vars,categorical_vars)
-### 3.1.6 Change data type 
+
 factor_columns <- c("category", "country","country_abbr", "channel_type")
 #Use mutate adjust factor_columns, change then to factor type
 raw_data <- raw_data %>%
   mutate(across(all_of(factor_columns), as.factor))
 rm(factor_columns)
-### 3.1.7 Backup the processed data 
+
 youtube_data <- raw_data
 clustering_data <- raw_data
+
 ### 3.1.8 Add new columns
-#### 3.1.8.1 Full time column
-# First, ensure that the 'created_date' column is in integer format
-# Assuming the data doesn't contain any decimal parts or NA values
 youtube_data$created_date <- as.integer(as.character(raw_data$created_date))
+
 # Check for any non-integer values in 'created_date'
 if (any(!is.finite(youtube_data$created_date))) {
   stop("The 'created_date' column contains non-integer or NA values.")
 }
+
 # Define a vector of month names
 month_names <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
 # Create a vector of two-digit month numbers using sprintf
 month_numbers <- sprintf("%02d", 1:12)
+
 # Create a mapping between month names and month numbers
 month_mapping <- setNames(month_numbers, month_names)
+
 # Update the 'full_date' column by combining year, month, and day
 youtube_data$full_time <- as.Date(paste(raw_data$created_year, 
                                         raw_data$created_month %>% match(month_names) %>% month_mapping[.],
@@ -237,26 +198,30 @@ youtube_data$full_time <- as.Date(paste(raw_data$created_year,
                                         sep = "-"), 
                                   format = "%Y-%m-%d")
 rm(month_mapping, month_names, month_numbers)
-#### 3.1.8.2 Subscriber engagement column
 youtube_data$subs_engagement <- youtube_data$video_views/youtube_data$subscribers
-#### 3.1.8.3 Add video upload frequency column
+
 youtube_data$uploads_frequency <- youtube_data$uploads/(2023-youtube_data$created_year)
-#### 3.1.8.4 Average views per video column
+
 youtube_data$average_views_per_video <- youtube_data$video_views/youtube_data$uploads
-#### 3.1.8.5 Urbanization rate column
+
 youtube_data$urban_rate <- youtube_data$urban_population/youtube_data$population
-#### 3.1.8.6 Years of experience column
+
+
 youtube_data$age <- 2022-youtube_data$created_year
-#### 3.1.8.7 Education population ratio column
+
 youtube_data$edu_ratio <- youtube_data$tertiary_edu_enrollment/youtube_data$population
-#### 3.1.8.8 Top channel flag column
+
+
+
 youtube_data$top_channel_flag <- as.numeric(youtube_data$channel_type_rank <1000)
-#### 3.1.8.9 Video views increasing rate column
+
+
 youtube_data$video_views_increasing_rate <- (youtube_data$video_views_last_30_days/youtube_data$video_views)
 
-#### 3.1.8.3 Add average earning columns
+
 youtube_data$monthly_earning <-( youtube_data$monthly_earning_high+youtube_data$monthly_earnings_low)/2
 youtube_data$yearly_earning <-( youtube_data$yearly_earning_low+youtube_data$yearly_earning_high)/2
+
 
 
 detect_unusual_rows <- function(data) {
@@ -266,6 +231,8 @@ detect_unusual_rows <- function(data) {
 }
 detect_unusual_rows(youtube_data)
 
+
+
 youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly_earning, ]
 
 
@@ -273,8 +240,7 @@ youtube_data <- youtube_data[youtube_data$monthly_earning <= youtube_data$yearly
 
 ### 3.2.1 Object and features
 gdp_data_path <- "API_NY.GDP.PCAP.CD_DS2_en_csv_v2_5871588.csv"
-
-gdp_data <- read_csv(gdp_data_path, skip = 4)%>%
+gdp_data <- read_csv(gdp_data_path, skip = 4, show_col_types = FALSE) %>% 
   select(-c("Country Code", "Indicator Name", "Indicator Code","...68"))
 
 colnames(gdp_data)[colnames(gdp_data) == "Country Name"] <- "Country.Name"
@@ -283,6 +249,8 @@ gdp_data <- as.data.frame(gdp_data)
 
 gdp_data <- gdp_data %>%
   mutate(gdp_per_capita = `2022`)
+
+
 (diff_countries = setdiff(youtube_data$country, gdp_data$Country.Name))
 gdp_data$Country.Name[gdp_data$Country.Name == "Egypt, Arab Rep."] <- "Egypt"
 gdp_data$Country.Name[gdp_data$Country.Name == "Korea, Rep."] <- "South Korea"
@@ -294,6 +262,7 @@ gdp_data$Country.Name[gdp_data$Country.Name == "Venezuela, RB"] <- "Venezuela"
 replace_na_with_global_median <- function(data) {
   years <- colnames(data)[-1]  
   global_median_gdp <- numeric(length(years))
+  
   # change GDP variable into numeric
   for (i in 2:ncol(data)) {
     data[, i] <- as.numeric(data[, i])
@@ -315,6 +284,7 @@ replace_na_with_global_median <- function(data) {
 
 
 gdp_data <- replace_na_with_global_median(gdp_data)
+
 
 
 
@@ -365,16 +335,26 @@ for (i in 1:length(youtube_data$channel_age_adjusted_income)) {
   }
 }
 
+
 gdp_2022 <- gdp_data[,c("Country.Name","gdp_per_capita")]
 
 youtube_data <- merge(youtube_data,gdp_2022, by.x = "country",by.y = "Country.Name", all.x = TRUE)
 rm(gdp_2022)
 
+
 median_gdp <- median(youtube_data$gdp_per_capita,na.rm = TRUE)
 youtube_data$gdp_per_capita[is.na(youtube_data$gdp_per_capita)] <- median_gdp
 rm(median_gdp)
 
+
+
+
+
+
 youtube_data$normalized_earning <- as.numeric(youtube_data$yearly_earning/youtube_data$gdp_per_capita)
+
+
+summary(youtube_data$normalized_earning)
 
 
 #Kernel Density Estimation
@@ -382,34 +362,59 @@ plot(density(youtube_data$normalized_earning), main="Kernel Density Estimation o
 
 # Shapiro-Wilk test
 shapiro_test <- shapiro.test(youtube_data$normalized_earning)
-
+print(shapiro_test)
 # Kolmogorov-Smirnov test
 ks_test <- ks.test(youtube_data$normalized_earning, "pnorm", mean(youtube_data$normalized_earning), sd(youtube_data$normalized_earning))
-
+print(ks_test)
 # Anderson-Darling test
 ad_test <- ad.test(youtube_data$normalized_earning)
-youtube_data$normalized_earning <- log(youtube_data$normalized_earning + 1)  
+print(ad_test)
+
+
+
+
+
+
+
+
+summary(youtube_data$normalized_earning)
 # Shapiro-Wilk test
 shapiro_test <- shapiro.test(youtube_data$normalized_earning)
+print(shapiro_test)
+
 # Kolmogorov-Smirnov test
 ks_test <- ks.test(youtube_data$normalized_earning, "pnorm", mean(youtube_data$normalized_earning), sd(youtube_data$normalized_earning))
+print(ks_test)
 
 # Anderson-Darling test
 ad_test <- ad.test(youtube_data$normalized_earning)
-
+print(ad_test)
 # Density plot
 plot(density(youtube_data$normalized_earning), main="Kernel Density Estimation of Normalized Earnings", xlab="Normalized Earnings")
+
 rm(ad_test,ks_test,shapiro_test)
 
 
 
+
 earning_threshold <- median(youtube_data$normalized_earning)+sd(youtube_data$normalized_earning)
+print(earning_threshold)
+
+
+### 3.2.2 Tranform categrical variables
+
+
+print(table(youtube_data$country))
 
 youtube_data$country_status <- factor(ifelse(youtube_data$country %in% c("Japan","Germany","Canada","United States", "United Kingdom","Denmark", "Australia","China","South Korea", "Switzerland", "Sweden", "Finland", "France", "Norway", "Singapore", "Netherlands", "Italy", "Brazil", "Belgium", "Greece", "Iceland", "Luxembourg", "Spain"), "Developed", ifelse(youtube_data$country == "Unknown", "Unknown", "Developing")))
+
+print(table(youtube_data$channel_type))
+print(table(youtube_data$channel_type) < 20)
 
 youtube_data$channel_type_status <- factor(ifelse(youtube_data$channel_type %in% c("Animals","Autos","Nonprofit","Sports","Tech","Unknown"),"Others",as.character(youtube_data$channel_type)))
 
 ### 3.2.3 Remove unrelevant columns
+
 
 youtube_data <- youtube_data[
   c(
@@ -421,37 +426,43 @@ youtube_data <- youtube_data[
 
 
 ### 3.2.4 Feature Engineering
+
+
 youtube_data$earning_class <- ifelse(youtube_data$normalized_earning > 6.2, 1, 0)
 youtube_data <- subset(youtube_data, select = -normalized_earning)
 
-
 names(youtube_data)
 
+
 ### 3.2.5 Training and Testing dataset 
+
 # Set a seed for reproducibility
 set.seed(562816)
+
 train_index <- createDataPartition(youtube_data$earning_class, p = 0.8, list = FALSE, times = 1)
+
 # Subset the original dataset to create training and testing datasets based on the indices generated above.
 youtube_train <- youtube_data[train_index, ]
 youtube_test  <- youtube_data[-train_index, ]
+
 # Identify and store the names of all independent variables (i.e., all variables excluding the target 'earning_class').
 independent_variables <- setdiff(colnames(youtube_data), "earning_class")
+
 # From the list of independent variables, identify and store the names of numeric and integer type variables.
 numeric_independent_variables <- independent_variables[sapply(youtube_data[, independent_variables], class) %in% c("numeric", "integer")]
+
 # Similarly, from the list of independent variables, identify and store the names of factor and character type variables.
 categorical_independent_variables <- independent_variables[sapply(youtube_data[, independent_variables], class) %in% c("factor", "character")]
 
-
 # Part4 Classification
-## 4.2 Single Variable Classification 
 
+## 4.1 Dependent Variable & Independent Variable
+## 4.2 Single Variable Classification 
 ### 4.2.1 Function build up
 
 #Define target column and positive label
 target_column <- 'earning_class'
 positive_label <- '1'
-
-
 
 Single_variable_model <- function(target_column, feature_column, prediction_column){
   
@@ -492,10 +503,12 @@ return(predictions)
 }
 
 
+
 AUC_calculator <- function(predcol, outcol) {
   perf <- performance(prediction(predcol, outcol == positive_label), 'auc')
   return(as.numeric(perf@y.values))
 }
+
 
 # 将数值型列离散化的函数
 discretizeVariable <- function(column) {
@@ -503,6 +516,8 @@ discretizeVariable <- function(column) {
   discrete_column <- cut(column, unique(quantiles))
   return(discrete_column)
 }
+
+
 
 # 单一变量预测的函数（使用离散化的数值特征）
 SingleVariablePredictNumeric <- function(target_column, feature_column, prediction_column, subset) {
@@ -512,11 +527,10 @@ SingleVariablePredictNumeric <- function(target_column, feature_column, predicti
 }
 
 
-
-
 ### 4.2.2 Analyze Variables
 
 #### 4.2.2.1 Analyzing Categorical variables:
+
 
 for (var in categorical_independent_variables) {
   prediction_probs <- Single_variable_model(target_column = youtube_train$earning_class, 
@@ -529,8 +543,6 @@ for (var in categorical_independent_variables) {
 }
 
 
-#### 4.2.2.2 Analyzing Numeric variables:
-
 # 对每个数值型特征进行处理
 for (var in numeric_independent_variables) {
   pred_col_name <- paste('pred', var, sep = '_')
@@ -540,6 +552,7 @@ for (var in numeric_independent_variables) {
     print(sprintf("%s: AUC: %4.3f", var, auc_train))
   }
 }
+
 
 
 # 单一变量预测的函数（使用离散化的数值特征）
@@ -570,6 +583,7 @@ for (var in vars) {
 
 
 
+
 ### 4.2.3 ROC plot
 
 library(ROCit)
@@ -581,7 +595,10 @@ plot_roc <- function(predcol, outcol, colour_id=2, overlaid=FALSE) {
 }
 
 
-# 假设我们想比较前两个分类变量的AUC（确保它们的AUC都大于0.8）
+
+library(ggplot2)
+library(gridExtra)
+
 var1 <- categorical_independent_variables[1]
 var2 <- categorical_independent_variables[2]
 
@@ -600,18 +617,21 @@ grid.arrange(fig1, fig2, ncol=2)
 
 
 
-
 ## 4.3 Null model
 ### 4.3.1 Build Null Model
 
+
 # Calculate the number of positive class instances (Npos)
 Npos <- sum(youtube_train[, target_column] == 1)
+cat("Number of positive class (target_column == 1) in youtube_train:", Npos, "rows\n")
 
 # Calculate the number of negative class instances (Nneg)
 Nneg <- nrow(youtube_train) - Npos
+cat("Number of negative class (target_column == 0) in youtube_train:", Nneg, "rows\n")
 
 # Calculate the Null Model prediction, which is the proportion of positive class
 pred.Null <- Npos / (Npos + Nneg)
+cat("Proportion of target_column == 1 in youtube_train (Null Model prediction):", pred.Null, "\n")
 
 # Create a vector of Null Model predictions with the same length as the dataset
 null_model_predictions <- rep(pred.Null, nrow(youtube_train))
@@ -621,12 +641,17 @@ library(pROC)
 roc_obj <- roc(youtube_train[, target_column], null_model_predictions)
 null_model_auc <- auc(roc_obj)
 
+cat("Null Model AUC:", null_model_auc, "\n")
+
 
 ## 4.4 Feature Selection
 
+
 feature_combine1 <- c(categorical_independent_variables,numeric_independent_variables)
 
+
 ### 4.4.1 Likelihood and deviance
+
 
 positive_label <- '1'
 # Define a function to compute log likelihood 
@@ -653,6 +678,7 @@ for (v in categorical_independent_variables) {
 }
 
 #### 4.3.2.2 Deviance of Numeric Variables
+
 selNumVars <- c()
 minDrop <- 10 
 for (v in numeric_independent_variables) {
@@ -664,11 +690,10 @@ for (v in numeric_independent_variables) {
     selNumVars <- c(selNumVars, pi)
   }
 }
-
 feature_combine2 <- c("channel_type_status","country_status","video_views","average_views_per_video","subscribers","channel_age_adjusted_income")
 
-### 4.4.2 Chi-Square Test
 
+### 4.4.2 Chi-Square Test
 analyze_features <- function(data, target_column, categorical_features, numeric_features) {
   results <- data.frame(Feature = character(0), Analysis = character(0), P_Value = numeric(0))
   
@@ -703,6 +728,8 @@ analyze_features <- function(data, target_column, categorical_features, numeric_
 }
 
 results <- analyze_features(youtube_data, target_column, categorical_independent_variables, numeric_independent_variables)
+
+print(results)
 
 
 feature_combine3 <- c("category","subscribers","created_year","average_views_per_video","urban_rate","age","edu_ratio","top_channel_flag","channel_age_adjusted_income")
@@ -770,6 +797,7 @@ calculateLogLikelihood <- function(model, x, y, epsilon = 1e-6) {
 
 
 #### 4.5.1.2 Plot the ROC
+
 library(ROCit)
 plot_roc <- function(predcol1, outcol1, predcol2, outcol2){
   roc_1 <- rocit(score=predcol1, class=outcol1==positive_label)
@@ -792,7 +820,6 @@ plot_roc3 <- function(predcol, outcol) {
 
 ### 4.5.2 Descision Tree Classifier
 #### 4.5.2.1 Build Descision Tree Model for all features
-
 formula_Var1 <- paste(target_column,'> 0 ~ ',paste(c(categorical_independent_variables,numeric_independent_variables), collapse=' + '), sep='')
 tmodel1 <- rpart(formula_Var1, data=youtube_train)
 
@@ -801,14 +828,18 @@ rpart.plot(tmodel1)
 
 # train set AUC score
 tmodel1_train_auc <- AUC_calculator(predict(tmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('tmodel1\'s AUC score on the training set is',tmodel1_train_auc, "\n")
 
 # test set AUC score
 tmodel1_test_auc <- AUC_calculator(predict(tmodel1, newdata=youtube_test), youtube_test[,target_column])
+cat('tmodel1\'s AUC score on the testing set is',tmodel1_test_auc)
 
 # performance table
 pretty_perf_table(tmodel1,youtube_train[c(categorical_independent_variables,numeric_independent_variables)],youtube_train[,target_column] == positive_label,youtube_test[c(categorical_independent_variables,numeric_independent_variables)],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("tmodel1 Log Likelihood:", calculateLogLikelihood(tmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 #Print the ROC plot
 pred_test_roc_tmodel1 <- predict(tmodel1, newdata=youtube_test)
@@ -827,14 +858,18 @@ rpart.plot(tmodel2)
 
 # train set AUC score
 tmodel2_train_auc <- AUC_calculator(predict(tmodel2, newdata=youtube_train), youtube_train[,target_column])
+cat('tmodel2\'s AUC score on the training set is',tmodel2_train_auc, "\n")
 
 # test set AUC score
 tmodel2_test_auc <- AUC_calculator(predict(tmodel2, newdata=youtube_test), youtube_test[,target_column])
+cat('tmodel2\'s AUC score on the testing set is',tmodel2_test_auc)
 
 # performance table
 pretty_perf_table(tmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("tmodel2 Log Likelihood:", calculateLogLikelihood(tmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # Print the ROC plot
 pred_test_roc_tmodel2 <- predict(tmodel2, newdata=youtube_test)
@@ -850,20 +885,20 @@ tmodel3 <- rpart(formula_Var3, data=youtube_train)
 # visualization decision tree
 rpart.plot(tmodel3)
 
-
-
-
-
 # train set AUC score 
 tmodel3_train_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('tmodel3\'s AUC score on the training set is',tmodel3_train_auc, "\n")
 
 # test set AUC score
 tmodel3_test_auc <- AUC_calculator(predict(tmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('tmodel3\'s AUC score on the testing set is',tmodel3_test_auc)
 
 # performance table
 pretty_perf_table(tmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("tmodel3 Log Likelihood:", calculateLogLikelihood(tmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # Print the ROC plot
 pred_test_roc_tmodel3 <- predict(tmodel3, newdata=youtube_test)
@@ -874,22 +909,22 @@ plot_roc(pred_test_roc_tmodel3, youtube_test[[target_column]],
 ### 4.5.3 Logistic Regression classifier
 
 #### 4.5.3.1 Build Logistic Regression model for all features
-
 lrmodel1 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, family = "binomial")
-
-
-
 
 # train set AUC score 
 lrmodel1_train_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel1\'s AUC score on the training set is',lrmodel1_train_auc, "\n")
 
 # test set AUC score
 lrmodel1_test_auc <- AUC_calculator(predict(lrmodel1, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel1\'s AUC score on the testing set is',lrmodel1_test_auc)
 
 # performance table
 pretty_perf_table(lrmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine1],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("lrmodel1 Log Likelihood:", calculateLogLikelihood(lrmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_lrmodel1 <- predict(lrmodel1, newdata=youtube_test)
@@ -901,19 +936,20 @@ plot_roc(pred_test_roc_lrmodel1, youtube_test[[target_column]],
 
 lrmodel2 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, family = "binomial")
 
-
-
-
 # train set AUC score 
 lrmodel2_train_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel2\'s AUC score on the training set is',lrmodel2_train_auc, "\n")
 
 # test set AUC score
 lrmodel2_test_auc <- AUC_calculator(predict(lrmodel2, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel2\'s AUC score on the testing set is',lrmodel2_test_auc)
 
 # performance table
 pretty_perf_table(lrmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("lrmodel2 Log Likelihood:", calculateLogLikelihood(lrmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_lrmodel2 <- predict(lrmodel2, newdata=youtube_test)
@@ -925,18 +961,20 @@ plot_roc(pred_test_roc_lrmodel2, youtube_test[[target_column]],
 
 lrmodel3 <- glm(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, family = "binomial")
 
-
-
 # train set AUC score 
 lrmodel3_train_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('lrmodel3\'s AUC score on the training set is',lrmodel3_train_auc, "\n")
 
 # test set AUC score
 lrmodel3_test_auc <- AUC_calculator(predict(lrmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('lrmodel3\'s AUC score on the testing set is',lrmodel3_test_auc)
 
 # performance table
 pretty_perf_table(lrmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("lrmodel3 Log Likelihood:", calculateLogLikelihood(lrmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_lrmodel3 <- predict(lrmodel3, newdata=youtube_test)
@@ -944,90 +982,96 @@ pred_train_roc_lrmodel3 <- predict(lrmodel3, newdata=youtube_train)
 plot_roc(pred_test_roc_lrmodel3, youtube_test[[target_column]],
          pred_train_roc_lrmodel3, youtube_train[[target_column]])
 
-### 4.5.4 SVM classifier
 
+### 4.5.4 SVM classifier
 library(e1071)
 svm_model <- svm(as.formula(paste("earning_class ~ ", paste(numeric_independent_variables, collapse = ' + '))), data = youtube_train, kernel = "radial")
 
-
-
 # train set AUC score 
 svm_model_train_auc <- AUC_calculator(predict(svm_model, newdata=youtube_train), youtube_train[,target_column])
+cat('svm_model\'s AUC score on the training set is',svm_model_train_auc, "\n")
 
 # test set AUC score
 svm_model_test_auc <- AUC_calculator(predict(svm_model, newdata=youtube_test), youtube_test[,target_column])
+cat('svm_model\'s AUC score on the testing set is',svm_model_test_auc)
 
 # performance table
 pretty_perf_table(svm_model,youtube_train[numeric_independent_variables],youtube_train[,target_column] == positive_label,youtube_test[numeric_independent_variables],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("svm_model Log Likelihood:", calculateLogLikelihood(svm_model, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_svm_model <- predict(svm_model, newdata=youtube_test)
 pred_train_roc_svm_model <- predict(svm_model, newdata=youtube_train)
 plot_roc(pred_test_roc_svm_model, youtube_test[[target_column]],
          pred_train_roc_svm_model, youtube_train[[target_column]])
-
-
 ### 4.5.5 Random Forests classifier
 #### 4.5.5.1 Build Random Forests model for feature combination 1
-
 rfmodel1 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine1, collapse = ' + '))), data = youtube_train, ntree = 100)
 
 
 # train set AUC score 
 rfmodel1_train_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel1\'s AUC score on the training set is',rfmodel1_train_auc, "\n")
 
 # test set AUC score
 rfmodel1_test_auc <- AUC_calculator(predict(rfmodel1, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel1\'s AUC score on the testing set is',rfmodel1_test_auc)
 
 # performance table
 pretty_perf_table(rfmodel1,youtube_train[feature_combine1],youtube_train[,target_column] == positive_label,youtube_test[feature_combine1],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("rfmodel1 Log Likelihood:", calculateLogLikelihood(rfmodel1, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_rfmodel1 <- predict(rfmodel1, newdata=youtube_test)
 pred_train_roc_rfmodel1 <- predict(rfmodel1, newdata=youtube_train)
 plot_roc(pred_test_roc_rfmodel1, youtube_test[[target_column]],
          pred_train_roc_rfmodel1, youtube_train[[target_column]])
-
 #### 4.5.5.2 Build Random Forests model for feature combination 2
-
 rfmodel2 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine2, collapse = ' + '))), data = youtube_train, ntree = 100)
 
 # train set AUC score 
 rfmodel2_train_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel2\'s AUC score on the training set is',rfmodel2_train_auc, "\n")
 
 # test set AUC score
 rfmodel2_test_auc <- AUC_calculator(predict(rfmodel2, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel2\'s AUC score on the testing set is',rfmodel2_test_auc)
 
 # performance table
 pretty_perf_table(rfmodel2,youtube_train[feature_combine2],youtube_train[,target_column] == positive_label,youtube_test[feature_combine2],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("rfmodel2 Log Likelihood:", calculateLogLikelihood(rfmodel2, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_rfmodel2 <- predict(rfmodel2, newdata=youtube_test)
 pred_train_roc_rfmodel2 <- predict(rfmodel2, newdata=youtube_train)
 plot_roc(pred_test_roc_rfmodel2, youtube_test[[target_column]],
          pred_train_roc_rfmodel2, youtube_train[[target_column]])
-
 #### 4.5.5.3 Build Random Forests model for feature combination 3
-
 rfmodel3 <- randomForest(as.formula(paste("earning_class ~ ", paste(feature_combine3, collapse = ' + '))), data = youtube_train, ntree = 100)
-
 
 # train set AUC score 
 rfmodel3_train_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_train), youtube_train[,target_column])
+cat('rfmodel3\'s AUC score on the training set is',rfmodel3_train_auc, "\n")
 
 # test set AUC score
 rfmodel3_test_auc <- AUC_calculator(predict(rfmodel3, newdata=youtube_test), youtube_test[,target_column])
+cat('rfmodel3\'s AUC score on the testing set is',rfmodel3_test_auc)
 
 # performance table
 pretty_perf_table(rfmodel3,youtube_train[feature_combine3],youtube_train[,target_column] == positive_label,youtube_test[feature_combine3],youtube_test[,target_column] == positive_label)
 
 # log likelihood
+cat("rfmodel3 Log Likelihood:", calculateLogLikelihood(rfmodel3, youtube_test, positive_label, epsilon = 1e-6), "\n")
+cat("NULL model Log Likelihood:",logNull)
 
 # print ROC plot
 pred_test_roc_rfmodel3 <- predict(rfmodel3, newdata=youtube_test)
@@ -1044,7 +1088,6 @@ model_data <- data.frame(
   train.auc = c(tmodel1_train_auc,tmodel2_train_auc,tmodel3_train_auc,lrmodel1_train_auc,lrmodel2_train_auc,lrmodel3_train_auc,svm_model_train_auc,rfmodel1_train_auc,rfmodel2_train_auc,rfmodel3_train_auc)
 )
 print(model_data)
-
 #### 4.5.6.2 ROC plot for each model
 
 # Generic function to generate ROC curve plots
@@ -1110,7 +1153,11 @@ models_rfmodel <- list(rfmodel1, rfmodel2, rfmodel3)
 model_names_rfmodel <- c("rfmodel1", "rfmodel2", "rfmodel3")
 roc_plot_rfmodel <- generate_roc_plot(models_rfmodel, model_names_rfmodel, youtube_train, target_column)
 
+print(roc_plot_all)
+
+
 # Part5 Clustering
+
 
 
 
@@ -1119,6 +1166,10 @@ roc_plot_rfmodel <- generate_roc_plot(models_rfmodel, model_names_rfmodel, youtu
 
 ### Data Import
 
+
+clustering_data <- clustering_data[,c("country","category","subscribers","video_views",
+                                      "uploads","video_views_last_30_days","monthly_earnings_low","monthly_earning_high","yearly_earning_low","yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate" ,"urban_population")]
+                                      
 # Calculate the frequency of each country
 country_counts <- table(clustering_data$country)
 categories_counts <- table(clustering_data$category)
@@ -1142,15 +1193,9 @@ clustering_data$category[clustering_data$category %in% categories_to_replace] <-
 clustering_data$country <- as.factor(clustering_data$country)
 clustering_data$category <- as.factor(clustering_data$category)
 
-
-
-
 clustering_data[sapply(clustering_data, is.numeric)] <- scale(clustering_data[sapply(clustering_data, is.numeric)])
 #Extracting Numeric Data
 clustering_numeric_data <- clustering_data[, sapply(clustering_data, is.numeric)]
-
-
-
 
 ## 5.3 Finding Best K
 
@@ -1209,9 +1254,8 @@ CH_index <- function(scaled_df, kmax, method="kmeans") {
 }
 
 
-
-
 ## 5.4 hierarchical clustering
+
 
 # Define the distance methods and linkage methods for hierarchical clustering
 distance_methods <- c("manhattan", "euclidean")
@@ -1237,6 +1281,7 @@ for (dist_method in distance_methods) {
 
 # Extract cluster memberships for the last clustering result with k=3
 groups <- cutree(cluster_result, k=3)
+
 
 
 # Perform principal component analysis (PCA) on the numeric data
@@ -1273,7 +1318,8 @@ crit.df <- CH_index(clustering_numeric_data, 10, method="hclust")
 crit.df <- na.omit(crit.df)
 
 
-# Plotting
+
+
 # Plot the CH index against k values
 CHIndexPlot <- ggplot(crit.df, aes(x=k, y=CH_index)) +
   geom_point() + geom_line(colour="red") +
@@ -1289,6 +1335,8 @@ WSSPlot <- ggplot(crit.df, aes(x=k, y=WSS)) +
 # Display both plots side by side
 grid.arrange(CHIndexPlot, WSSPlot, nrow=1)
 
+
+
 # Use ggplot visualize Clustering
 ggplot(hclust_project2D, aes(x=PC1, y=PC2)) +
   geom_point(aes(shape=cluster, color=cluster)) +
@@ -1296,8 +1344,11 @@ ggplot(hclust_project2D, aes(x=PC1, y=PC2)) +
   geom_polygon(data=hclust_hull, aes(group=cluster, fill=as.factor(cluster)), alpha=0.4, linetype=0) +
   theme(text=element_text(size=20))
 
+
 ## 5.6 K-means Clustering
 
+
+# Set the best number of clusters
 kbest.p <- 3
 cboot.hclust <- clusterboot(clustering_numeric_data, clustermethod=hclustCBI, method="ward.D2", k=kbest.p)
 
@@ -1323,8 +1374,6 @@ kMeansASW <- kmeansruns(clustering_numeric_data, krange=1:10, criterion="asw")
 
 # Combine k-means CH index and ASW values into a single data frame
 kMeansMetrics <- data.frame(k=1:10, CH_index=kMeansCH$crit, ASW=kMeansASW$crit)
-
-
 
 
 # Plot the CH index against k values
@@ -1369,6 +1418,103 @@ grid.arrange(plotList[[1]], plotList[[2]], plotList[[3]], plotList[[4]], nrow=2)
 
 
 
+ui_model <- fluidPage(
+  titlePanel("Model Selection"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("model_type", "Model Type", 
+                  choices = c("Decision Tree Model", "Logistic Regression Model", "SVM Model", "Random Forest Model", "All Model")
+      ),
+      conditionalPanel(
+        condition = "input.model_type == 'Decision Tree Model'",
+        selectInput("dt_model", "Decision Tree Model",
+                    choices = c("All","tmodel1", "tmodel2", "tmodel3")
+        )
+      ),
+      conditionalPanel(
+        condition = "input.model_type == 'Logistic Regression Model'",
+        selectInput("lr_model", "Logistic Regression Model",
+                    choices = c("All","lrmodel1", "lrmodel2", "lrmodel3")
+        )
+      ),
+      conditionalPanel(
+        condition = "input.model_type == 'SVM Model'",
+        selectInput("SVM_model", "SVM Model",
+                    choices = c("SVM_model")
+        )
+      ),
+      conditionalPanel(
+        condition = "input.model_type == 'Random Forest Model'",
+        selectInput("rf_model", "Random Forest Model",
+                    choices = c("All","rfmodel1", "rfmodel2", "rfmodel3")
+        )
+      )
+    ),
+    mainPanel(
+      plotOutput("roc_plot")
+    )
+  )
+)
+
+server_model <- function(input, output, session) {
+  
+  output$roc_plot <- renderPlot({
+    model_type <- input$model_type
+    
+    if (model_type == "Decision Tree Model") {
+      selected_model <- input$dt_model
+      
+      if (selected_model == "tmodel1") {
+        plot_roc3(predict(tmodel1, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "tmodel2") {
+        plot_roc3(predict(tmodel2, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "tmodel3") {
+        plot_roc3(predict(tmodel3, newdata=youtube_train), youtube_train[[target_column]])
+      }
+      else if (selected_model == "All") {roc_plot_tmodel}
+    } else if (model_type == "Logistic Regression Model") {
+      selected_model <- input$lr_model
+      
+      if (selected_model == "lrmodel1") {
+        plot_roc3(predict(lrmodel1, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "lrmodel2") {
+        plot_roc3(predict(lrmodel2, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "lrmodel3") {
+        plot_roc3(predict(lrmodel3, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "All") {roc_plot_lrmodel}
+    } else if (model_type == "SVM Model") {
+      selected_model <- input$SVM_model
+      if (selected_model == "SVM_model") {
+        plot_roc3(predict(svm_model, newdata=youtube_train), youtube_train[[target_column]])
+      }
+    } else if (model_type == "Random Forest Model") {
+      selected_model <- input$rf_model
+      
+      if (selected_model == "rfmodel1") {
+        plot_roc3(predict(rfmodel1, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "rfmodel2") {
+        plot_roc3(predict(rfmodel2, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "rfmodel3") {
+        plot_roc3(predict(rfmodel3, newdata=youtube_train), youtube_train[[target_column]])
+      } else if (selected_model == "All") {roc_plot_rfmodel}
+    } else if (model_type == "All Model"){roc_plot_all}
+  })
+}
+shinyApp(ui = ui_model, server = server_model)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1458,109 +1604,4 @@ server_model <- function(input, output, session) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-ui_model <- fluidPage(
-  titlePanel("Model Selection"),
-  sidebarLayout(
-    sidebarPanel(
-      selectInput("model_type", "Model Type", 
-                  choices = c("Decision Tree Model", "Logistic Regression Model", "SVM Model", "Random Forest Model", "All Model")
-      ),
-      conditionalPanel(
-        condition = "input.model_type == 'Decision Tree Model'",
-        selectInput("dt_model", "Decision Tree Model",
-                    choices = c("All","tmodel1", "tmodel2", "tmodel3")
-        )
-      ),
-      conditionalPanel(
-        condition = "input.model_type == 'Logistic Regression Model'",
-        selectInput("lr_model", "Logistic Regression Model",
-                    choices = c("All","lrmodel1", "lrmodel2", "lrmodel3")
-        )
-      ),
-      conditionalPanel(
-        condition = "input.model_type == 'SVM Model'",
-        selectInput("SVM_model", "SVM Model",
-                    choices = c("SVM_model")
-        )
-      ),
-      conditionalPanel(
-        condition = "input.model_type == 'Random Forest Model'",
-        selectInput("rf_model", "Random Forest Model",
-                    choices = c("All","rfmodel1", "rfmodel2", "rfmodel3")
-        )
-      )
-    ),
-    mainPanel(
-      plotOutput("roc_plot")
-    )
-  )
-)
-
-server_model <- function(input, output, session) {
-  
-  output$roc_plot <- renderPlot({
-    model_type <- input$model_type
-    
-    if (model_type == "Decision Tree Model") {
-      selected_model <- input$dt_model
-      
-      if (selected_model == "tmodel1") {
-        plot_roc3(predict(tmodel1, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "tmodel2") {
-        plot_roc3(predict(tmodel2, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "tmodel3") {
-        plot_roc3(predict(tmodel3, newdata=youtube_train), youtube_train[[target_column]])
-      }
-      else if (selected_model == "All") {roc_plot_tmodel}
-    } else if (model_type == "Logistic Regression Model") {
-      selected_model <- input$lr_model
-      
-      if (selected_model == "lrmodel1") {
-        plot_roc3(predict(lrmodel1, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "lrmodel2") {
-        plot_roc3(predict(lrmodel2, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "lrmodel3") {
-        plot_roc3(predict(lrmodel3, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "All") {roc_plot_lrmodel}
-    } else if (model_type == "SVM Model") {
-      selected_model <- input$SVM_model
-      if (selected_model == "SVM_model") {
-        plot_roc3(predict(svm_model, newdata=youtube_train), youtube_train[[target_column]])
-      }
-    } else if (model_type == "Random Forest Model") {
-      selected_model <- input$rf_model
-      
-      if (selected_model == "rfmodel1") {
-        plot_roc3(predict(rfmodel1, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "rfmodel2") {
-        plot_roc3(predict(rfmodel2, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "rfmodel3") {
-        plot_roc3(predict(rfmodel3, newdata=youtube_train), youtube_train[[target_column]])
-      } else if (selected_model == "All") {roc_plot_rfmodel}
-    } else if (model_type == "All Model"){roc_plot_all}
-  })
-}
 shinyApp(ui = ui_model, server = server_model)
