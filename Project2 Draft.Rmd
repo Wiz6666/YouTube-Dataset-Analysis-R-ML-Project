@@ -1608,6 +1608,36 @@ print(model_data)
 
 # Part5 Clustering
 
+
+
+Considering the diversity of readers, we will answer a few common questions at the beginning of Clustering:
+
+Do you need a target variable for clustering?
+  No, clustering does not require a target variable. Clustering is an unsupervised learning method, which means it seeks to identify patterns or groups in the data without the use of previously labeled examples. It relies on the inherent structure and distribution of the data.
+
+Which clustering technique will we use?
+  The choice of clustering technique often depends on the dataset and the specific problem at hand. Common methods include:
+
+  K-Means Clustering: Best suited for spherical clusters when the number of clusters (K) is known or can be estimated.
+  Hierarchical Clustering: Appropriate when a tree-like structure is preferred or when one wishes to understand the hierarchical relationships within the data.
+  DBSCAN (Density-Based Spatial Clustering of Applications with Noise): Suitable for clusters of varying shapes and for data with noise.
+  For this particular task, we will employ both Hierarchical Clustering and K-Means Clustering. The reason for this is because Hierarchical Clustering offers a comprehensive visualization that aids in understanding the potential cluster groupings at various levels of granularity. On the other hand, K-Means Clustering is computationally efficient and works well when the number of clusters can be reasonably estimated.
+
+How to set parameters? How do you determine an appropriate K value for clustering?
+  Parameter setting often combines domain knowledge, empirical testing, and experimentation. For K-Means, a typical technique to ascertain the K value is the Elbow Method. By plotting the sum of squared distances for various K values, the "elbow" of the curve represents an optimal value for K, striking a balance between precision and computational cost.
+
+How do you evaluate clustering performance?
+  Evaluating clustering performance can be a challenge, especially given its unsupervised nature. Internal metrics such as the Silhouette Coefficient, Davies-Bouldin Index, and Calinski-Harabasz Index are used to gauge the quality of clusters without any external benchmark. If ground truth labels are available, even if not used in the clustering process, external metrics like the Adjusted Rand Index or Normalized Mutual Information can be employed.
+
+What insights can be drawn from the clustering results?
+  Clustering can yield diverse insights depending on the context. In the realm of market segmentation, it can spotlight varied customer behavior patterns. In biology, it may identify previously unknown species or genes with analogous functions. It is crucial to interpret the clusters in the context of the domain and the specific problem being addressed.
+
+What distinguishes clustering from classification?
+  While both clustering and classification are methods used for grouping data points, they serve divergent purposes. Clustering, an unsupervised learning approach, groups data points based on inherent similarities without predefined labels. In contrast, classification, a supervised learning method, predicts the predefined label of a data point leveraging its features. Classification has a clear target variable, whereas clustering seeks to discern structure within the data.
+  
+  
+  
+  
 ## 5.1 Data preprocessing
 
 ### Data Import
