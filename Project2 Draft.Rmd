@@ -63,6 +63,7 @@ library(rpart.plot)
 library(pander)
 library(e1071)
 library(randomForest)
+library(fpc)
 ```
 
 
@@ -1597,13 +1598,6 @@ print(model_data)
 ### 4.9.2 ROC plot for each model
 
 
-# Part 5 Cluster
-### 5.1 Backup the processed data 
-Backup the raw_data into another name youtube_data
-```{r Backup Data}
-youtube_data <- raw_data
-clustering_data <- raw_data 
-```
 
 
 
@@ -1612,193 +1606,187 @@ clustering_data <- raw_data
 
 
 
+# Part5 Clustering
 
+## 5.1 Data preprocessing
 
-
-
-
-
-
-
-
-
-
-
-# 5. Clustering
-首先，你需要
-准备或获取已经标准化的数据（如scaled_df）。
-使用上述函数计算不同k值下的CH指数，并确定最佳的k值。
-使用最佳的k值进行层次聚类。
-绘制并查看聚类的树状图
-
-
-数据预处理
-## 导入数据
-此处 我们使用 预处理后的整个清理数据集
+### Data Import
+In this section, we are working with a pre-processed and cleaned dataset to prepare it for clustering.
 
 ```{r}
-clustering_data <- clustering_data[,c("country","category","rank","subscribers","video_views",
+clustering_data <- clustering_data[,c("country","category","subscribers","video_views",
 "uploads","video_views_last_30_days","monthly_earnings_low","monthly_earning_high","yearly_earning_low","yearly_earning_high","subs_last_30_days","tertiary_edu_enrollment","population","unemployment_rate" ,"urban_population")]
 ```
 
-更换国家为World，更换种类为Others
+  The frequency of occurrence of each country and category in the dataset was first calculated. Based on these frequencies, countries and categories with fewer occurrences were identified, and then these less frequent countries and "unknown" categories were replaced with the generic country "world" label and category "other" label to effectively aggregate the data. We do this first to reduce noise, and in large datasets, certain categories may be underrepresented. 
+  During the clustering process, these sparse data points may be seen as noise or outliers. Aggregating them under common labels ensures that they do not adversely affect the overall clustering results, and secondly, this can enhance interpretability, the presence of secondary categories can complicate the interpretation of clustering results. Through aggregation, the data structure can be simplified to make the clustering results clearer and easier to interpret, as we need to consider different readers' reading needs, and most of the audiences are not able to read complex clustering results quickly.   Furthermore this can improve efficiency, dealing with too many separate categories may increase the computational complexity of the clustering algorithm. Reducing the number of categories can speed up the algorithm.
 
+  After we perform the operation, we again convert the data type to the Factor type to prevent the previous substitution will be non-existent Factor.
 ```{r}
-# 计算每个国家出现的次数
+# Calculate the frequency of each country
 country_counts <- table(clustering_data$country)
 categories_counts <- table(clustering_data$category)
 
-# 更换国家为World，更换种类为Others
+# Replace countries with fewer than 5 occurrences with "World", and categories with fewer than 5 occurrences with "Others"
 countries_to_replace <- names(country_counts[country_counts < 5])
 categories_to_replace <- names(categories_counts[categories_counts < 5])
 
-# 替换这些国家名称为"World"
+# Convert factor columns to character type
+clustering_data$country <- as.character(clustering_data$country)
+clustering_data$category <- as.character(clustering_data$category)
+
+# Replace the names of the countries in the list with "World"
 clustering_data$country[clustering_data$country %in% countries_to_replace] <- "World"
 clustering_data$country[clustering_data$country == "Unknown"] <- "World"
 
+# Replace the names of the categories in the list with "Others"
 clustering_data$category[clustering_data$category %in% categories_to_replace] <- "Others"
 
-# 重新定义因子级别
+# Convert back to factor type
 clustering_data$country <- as.factor(clustering_data$country)
 clustering_data$category <- as.factor(clustering_data$category)
 
-# 按国家汇总数据并计算每个国家的平均值
-clustering_data_avg <- clustering_data %>% 
-  group_by(country) %>%
-  summarize(across(where(is.numeric), ~mean(.)))
+```
 
-# 标准化
-clustering_data_avg[sapply(clustering_data_avg, is.numeric)] <- scale(clustering_data_avg[sapply(clustering_data_avg, is.numeric)])
-
-# 移除非数值列
+5.2 Data Scaling
+```{r , include=FALSE}
+clustering_data[sapply(clustering_data, is.numeric)] <- scale(clustering_data[sapply(clustering_data, is.numeric)])
+#Extracting Numeric Data
 clustering_numeric_data <- clustering_data[, sapply(clustering_data, is.numeric)]
 ```
 
 
-1. 数据汇总：首先按国家进行分组，然后对每个国家的数值变量求平均。这意味着数据集小得多，因为只包含每个国家的平均值。我尝试过不使用数据汇总，这会使决策树图表有极多的末端，导致下端全黑。
 
-2. 数据标准化：选择国家的平均值标准化
-
-
-
-
-
-
-
-
-
+## 5.3 Finding Best K
+  Due to the breadth of the audience present in the report, we will explain the role of each function all over again for better comprehensibility.
+  
+  First, define helper functions to compute distances and evaluate cluster quality.
+  Then, define a function to calculate the Calinski-Harabasz Index using either k-means or hierarchical clustering. This function will be instrumental in determining the best number of clusters for the dataset.
+  Finally, compute the CH Index for the dataset, providing insights into the optimal number of clusters.
+    
+  The sqr_euDist function computes the squared Euclidean distance between two points. This is a common distance measure used in clustering algorithms.The Calinski-Harabasz Index helps make this determination by measuring the ratio of the sum of between-cluster dispersion to within-cluster dispersion.
+  The functions wss, wss_total, and tss compute the Within-Cluster Sum of Squares, total WSS, and Total Sum of Squares, respectively. These metrics help evaluate the compactness of the clusters.Functions like WSS and TSS provide metrics that can help assess the quality of the clusters. They ensure the clusters are tight and well-separated.
+  The CH_index function computes the Calinski-Harabasz Index, a metric used to determine the optimal number of clusters. This function is designed to work with either hierarchical clustering or k-means clustering.By allowing the choice between kmeans and hclust in the CH_index function, the code provides flexibility in the clustering approach. Different datasets or use cases might favor one method over the other
 ```{r}
-# 导入所需的库
-library(ggplot2)
-library(fpc)
-
-# ...[数据导入和预处理的代码部分保持不变]...
-
-# 距离方法和连接方法组合
-distance_methods <- c("manhattan", "euclidean")
-linkage_methods <- c("average", "single", "ward.D2")
-
-# 使用列表存储所有聚类结果
-all_cluster_results <- list()
-
-# 嵌套循环，对每种组合进行层次聚类
-for (dist_method in distance_methods) {
-  for (linkage_method in linkage_methods) {
-    # 计算距离矩阵
-    dist_matrix <- dist(clustering_numeric_data, method = dist_method)
-    # 进行层次聚类
-    cluster_result <- hclust(dist_matrix, method = linkage_method)
-    # 保存到列表中
-    all_cluster_results[[paste(dist_method, linkage_method, sep="_")]] <- cluster_result
-  }
+# Define a function to compute the squared Euclidean distance between two points x and y
+sqr_euDist <- function(x, y) {
+  sum((x - y)^2)
 }
 
+# Define a function to compute the Within-Cluster Sum of Squares (WSS) for a given cluster matrix
+wss <- function(clustermat) {
+  c0 <- colMeans(clustermat)
+  sum(apply(clustermat, 1, FUN=function(row) {sqr_euDist(row, c0)}))
+}
+
+# Define a function to compute the total WSS for all clusters
+wss_total <- function(scaled_df, labels) {
+  wss_sum <- 0
+  k <- length(unique(labels))
+  for (i in 1:k)
+    wss_sum <- wss_sum + wss(subset(scaled_df, labels == i))
+  wss_sum
+}
+
+# Define a function to compute the Total Sum of Squares (TSS)
+tss <- function(scaled_df) {
+  wss(scaled_df)
+}
+
+# Define a function to compute the Calinski-Harabasz Index (CH Index) using either hierarchical clustering or k-means clustering
+# The CH Index is useful for determining the optimal number of clusters
+CH_index <- function(scaled_df, kmax, method="kmeans") {
+  if (!(method %in% c("kmeans", "hclust")))
+    stop("method must be one of c('kmeans', 'hclust')")
+  npts <- nrow(scaled_df)
+  wss_value <- numeric(kmax)
+  wss_value[1] <- wss(scaled_df)
+  
+  if (method == "kmeans") {
+    for (k in 2:kmax) {
+      clustering <- kmeans(scaled_df, k, nstart=10, iter.max=100)
+      wss_value[k] <- clustering$tot.withinss
+    }
+  } else {
+    d <- dist(scaled_df, method="euclidean")
+    pfit <- hclust(d, method="ward.D2")
+    for (k in 2:kmax) {
+      labels <- cutree(pfit, k=k)
+      wss_value[k] <- wss_total(scaled_df, labels)
+    }
+  }
+  
+  bss_value <- tss(scaled_df) - wss_value
+  B <- bss_value / (0:(kmax-1))
+  W <- wss_value / (npts - 1:kmax)
+  data.frame(k = 1:kmax, CH_index = B/W, WSS = wss_value)
+}
 ```
 
 
 
+## 5.4 hierarchical clustering
 
-```{r}
-# 导入必要的库
-library(ggplot2)
-library(fpc)
-
-print_clusters <- function(df, groups, cols_to_print) {
-  Ngroups <- max(groups)
-  for (i in 1:Ngroups) {
-    print(paste("cluster", i))
-    print(df[groups == i, cols_to_print])
-  }
-}
-# 距离方法和连接方法的组合
+The code first sets up the configurations for hierarchical clustering.
+  It then loops through each combination, performing clustering and visualizing the results. This iterative approach ensures that you evaluate multiple configurations to find the best one.
+  After examining the various dendrograms, you can finalize the clustering by extracting the cluster memberships. This final step provides actionable labels for each data point, allowing for further insights and analysis.
+```{r hierarchical clustering}
+# Define the distance methods and linkage methods for hierarchical clustering
 distance_methods <- c("manhattan", "euclidean")
 linkage_methods <- c("average", "single", "ward.D2")
 
-# 用于存储所有聚类结果的列表
+# Initialize a list to store the results of each clustering configuration
 all_cluster_results <- list()
 
-# 使用嵌套循环为每种组合进行层次聚类
+# Loop through each combination of distance and linkage methods
 for (dist_method in distance_methods) {
   for (linkage_method in linkage_methods) {
-    cat(paste("使用距离方法:", dist_method, "和连接方法:", linkage_method, "\n"))
-    
-    # 计算距离矩阵
+    # Compute the distance matrix for the given distance method
     dist_matrix <- dist(clustering_numeric_data, method = dist_method)
-    
-    # 进行层次聚类
+    # Perform hierarchical clustering using the computed distance matrix and the given linkage method
     cluster_result <- hclust(dist_matrix, method = linkage_method)
-    
-    # 结果保存到列表中
+    # Store the clustering result in the results list with a unique key based on the distance and linkage methods
     all_cluster_results[[paste(dist_method, linkage_method, sep="_")]] <- cluster_result
-    
-    # 绘制树状图
-    plot(cluster_result, labels = FALSE, main = paste("距离方法:", dist_method, ", 连接方法:", linkage_method))
-    
-    # 选择聚类数量并提取每个聚类的成员
-    groups <- cutree(cluster_result, k = 3)
-    print_clusters(clustering_data, groups, c("country"))
+    # Plot the dendrogram for the clustering result
+    plot(cluster_result, labels = FALSE, main = paste("Distance method:", dist_method, ", Linkage method:", linkage_method))
+    rect.hclust(cluster_result, k=3)
   }
 }
 
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-```{r}
-# 提取每个聚类的成员
+# Extract cluster memberships for the last clustering result with k=3
 groups <- cutree(cluster_result, k=3)
 
-# 打印每个聚类的成员
-print_clusters <- function(df, groups, cols_to_print) {
-  Ngroups <- max(groups)
-  for (i in 1:Ngroups) {
-    print(paste("cluster", i))
-    print(df[groups == i, cols_to_print])
-  }
-}
+```
 
-cols_to_print <- c("country")
-print_clusters(clustering_data, groups, cols_to_print)
-
-# 可视化聚类 - 数据准备
+  The dendrogram is a visual representation of how the clusters are merged iteratively. The vertical lines on the dendrogram indicate the dissimilarity (or distance) at which two clusters are merged. A longer vertical line suggests a greater distance or dissimilarity.
+  Deciding on the Number of Clusters:
+  Elbow Method: An effective method to determine the ideal number of clusters is by looking for an "elbow" in the dendrogram. This is the point where the merging distance starts to increase significantly, indicating that further merges might not be meaningful. In many visually appealing plots, it's often observed that cutting the dendrogram to produce three clusters is ideal, as the merging distance increases rapidly beyond this point.
+Selection of Distance and Linkage Methods:
+  Based on the output from rect.hclust, the combination of euclidean distance and single linkage seems to be the most effective. Thus, for our subsequent analysis, we'll choose the euclidean distance with single linkage method.
+  
+  
+  
+Visual Clustering 
+ 
+ - Data Preparation
+ First, we use Principal Component Analysis (PCA) to reduce the high-dimensional data into a simpler form, preserving as much of the original variance as possible.
+ then projects the data into a 2D space using the first two principal components. This projection facilitates visualization by translating the multi-dimensional data into a format that can be easily plotted on a two-dimensional plane.
+ The 2D projections are enriched by appending cluster assignments and country information to each data point. This makes the subsequent visualizations more informative, showing not only the cluster each point belongs to but also the country it's associated with
+  We also visualize Cluster boundary. It provide a clear visual representation of each cluster's spread in the 2D space, the code computes the convex hull for each cluster. A convex hull is the smallest convex polygon that encompasses all points of a cluster, effectively showing the boundary of the cluster.
+```{r}
+# Perform principal component analysis (PCA) on the numeric data
 princ <- prcomp(clustering_numeric_data)
+
+# Number of components to retain for projection (in this case 2D)
 nComp <- 2
+
+# Project the data into the first two principal components
 project2D <- as.data.frame(predict(princ, newdata=clustering_numeric_data)[,1:nComp])
+
+# Combine the 2D projections with cluster groups and country information
 hclust_project2D <- cbind(project2D, cluster=as.factor(groups), country=clustering_data$country)
 
-# 可视化聚类 - 寻找凸包
+# Define a function to compute the convex hull for each cluster in the 2D projection
 find_convex_hull <- function(proj2Ddf, groups) {
   do.call(rbind,
           lapply(unique(groups),
@@ -1810,66 +1798,186 @@ find_convex_hull <- function(proj2Ddf, groups) {
   )
 }
 
+# Compute the convex hull for each cluster
 hclust_hull <- find_convex_hull(hclust_project2D, groups)
 
-# 使用ggplot可视化聚类
-library(ggplot2)
+```
+
+
+
+Visualize CH index plot and WSS plot.
+```{r}
+# Compute the CH Index for the clustering numeric data using hierarchical clustering
+crit.df <- CH_index(clustering_numeric_data, 10, method="hclust")
+
+# Handle potential missing values
+crit.df <- na.omit(crit.df)
+
+# Plotting
+# Plot the CH index against k values
+CHIndexPlot <- ggplot(crit.df, aes(x=k, y=CH_index)) +
+  geom_point() + geom_line(colour="red") +
+  scale_x_continuous(breaks=1:10, labels=1:10) +
+  labs(y="CH index") + theme(text=element_text(size=20))
+
+# Plot the WSS against k values
+WSSPlot <- ggplot(crit.df, aes(x=k, y=WSS)) +
+  geom_point() + geom_line(colour="blue") +
+  scale_x_continuous(breaks=1:10, labels=1:10) +
+  labs(y="WSS") + theme(text=element_text(size=20))
+
+# Display both plots side by side
+grid.arrange(CHIndexPlot, WSSPlot, nrow=1)
+
+```
+This graph shows how the CH index (Calinski-Harabasz Index) and WSS (sum of squares within clusters) vary with the value of k (i.e., the number of clusters), respectively.
+Given the diversity of readers, we will analyze the graphs in order to increase readability
+
+CH Index:
+  The CH index (Calinski-Harabasz Index) is a metric used to evaluate the effectiveness of clustering.
+  The CH index is the ratio of inter-cluster distance to intra-cluster distance. A high CH index indicates that points within clusters are very close to each other and relatively far from other clusters, which is what we want to see for good clustering.
+  We can see that the CH index reaches its maximum value at k=2, which means that k=2 provides the best ratio of inter-cluster distance to intra-cluster distance. That is, when there are only two clusters, intra-cluster similarity and inter-cluster dissimilarity are best.
+
+WSS (intra-cluster sum of squares):
+  WSS measures the total distance from all points within a cluster to its cluster center. A smaller WSS means that points within a cluster are closer to its center, thus forming tighter clusters.
+  At increasing values of k, we expect the WSS to decrease because more clusters mean fewer points within each cluster, and thus less intra-cluster distance.
+  However, we are not seeking to minimize the WSS, but rather to find a suitable value of k at which increasing the number of clusters no longer significantly reduces the WSS. This "turning point" or "elbow" is often used to select the right value of k. In the graph you provided, the WSS is reduced by a factor of k.
+  The drop in WSS from k=2 to k=3 is the most significant, suggesting that k=2 to k=3 brings the greatest improvement in clustering. After that, the decrease in WSS slows down, which means that adding more clusters does not significantly improve the clustering. For WSS, instead of aiming for the highest value, we look for the "elbow", where the WSS decline starts to slow down. k=3 neighborhood may be a suitable choice.
+
+```{r}
+# Use ggplot visualize Clustering
 ggplot(hclust_project2D, aes(x=PC1, y=PC2)) +
   geom_point(aes(shape=cluster, color=cluster)) +
   geom_text(aes(label=country, color=cluster), hjust=0, vjust=1, size=3) +
   geom_polygon(data=hclust_hull, aes(group=cluster, fill=as.factor(cluster)), alpha=0.4, linetype=0) +
   theme(text=element_text(size=20))
-
 ```
+  In the chart, we have a K of 3, with 3 squares, and there are overlapping parts between each square, with fewer parts overlapping in all three squares. We believe this is due to the fact that the data was chosen from the top 1,000 tanker bloggers, out of the millions of tanker bloggers, these 1,000 represent the head of all tanker bloggers, which inevitably leads to duplication of area, followed by the fact that many countries are duplicated multiple times, and although the other data varies from blogger to blogger, each feature is not independent, and they are linked to the country's geographic location, which leads to overlapping area as well
 
 
+## 5.6 K-means Clustering
 
+  The clusterboot method was first used to verify the stability of hierarchical clustering. This is to determine if we have chosen the right number of clusters. The stability value indicates how stable each cluster is when resampling the data.
+  Next, the code performs clustering using the k-means algorithm, where the optimal value of k is set to 5. The kmeans method is used to find the centers of the clusters and assign data points to the nearest centers.
+  Finally, the code uses the fpc library to compute the CH index and ASW values, which help evaluate the quality of clustering for different values of k. A higher CH index indicates greater inter-cluster variation and less intra-cluster variation, while ASW measures the cohesiveness of the clusters, with values closer to 1 indicating better clustering.
+```{r, include=FALSE}
+# Set the best number of clusters
+kbest.p <- 3
+cboot.hclust <- clusterboot(clustering_numeric_data, clustermethod=hclustCBI, method="ward.D2", k=kbest.p)
 
-
-```{r}
-# 导入fpc库，这个库提供了clusterboot()函数
-library(fpc)
-
-# 设置最佳的聚类数目
-kbest.p <- 5
-
-# 使用clusterboot()函数对clustering_numeric_data进行层次聚类
-# 使用hclustCBI作为聚类方法，使用ward.D2作为连接方法，并选择kbest.p作为最佳的聚类数目
-cboot.hclust <- clusterboot(clustering_numeric_data, clustermethod=hclustCBI,
-                            method="ward.D2", k=kbest.p)
-
-# 显示clusterboot的结果概览
-summary(cboot.hclust$result)
-
-# 从clusterboot的结果中获取数据点的聚类标签
+# Get the cluster labels for the data points from the clusterboot results
 groups.cboot <- cboot.hclust$result$partition
 
-# 使用之前定义的print_clusters()函数展示每个聚类中的国家
-cols_to_print <- c("country")
-print_clusters(clustering_data, groups.cboot, cols_to_print)
-
-# 计算每个聚类的稳定性值，这是基于解散次数的比例
-# 1 - (每个聚类解散的次数 / 100)
+# Calculate stability values for each cluster
 stability_values <- 1 - cboot.hclust$bootbrd/100
-
-# 识别并显示两个最稳定的聚类
-cat("因此，聚类", order(stability_values)[kbest.p-1], "和", order(stability_values)[kbest.p-2], "是非常稳定的")
-
 
 ```
 
 ```{r}
-# 从聚类结果中选择聚类5的国家
-cluster_5_countries <- clustering_data[groups.cboot == 5, "country"]
-print("聚类5的国家:")
-print(cluster_5_countries)
+# Identify and display the two most stable clusters
+cat("Thus, clusters", order(-stability_values)[1], "and", order(-stability_values)[2], "are highly stable")
 
-# 从聚类结果中选择聚类1的国家
-cluster_1_countries <- clustering_data[groups.cboot == 1, "country"]
-print("聚类1的国家:")
-print(cluster_1_countries)
+# Perform clustering using the k-means algorithm with the optimal value for k set to 5
+optimalKValue <- 5
+kMeansResult <- kmeans(clustering_numeric_data, optimalKValue, nstart=100, iter.max=100)
+
+# Get the cluster results from k-means
+clusterGroups <- kMeansResult$cluster
+
+# Calculate CH index and ASW values for k values ranging from 1 to 10 using the fpc library
+kMeansCH <- kmeansruns(clustering_numeric_data, krange=1:10, criterion="ch")
+kMeansASW <- kmeansruns(clustering_numeric_data, krange=1:10, criterion="asw")
+
+# Combine k-means CH index and ASW values into a single data frame
+kMeansMetrics <- data.frame(k=1:10, CH_index=kMeansCH$crit, ASW=kMeansASW$crit)
+```
+
+
+  First, we use the ggplot2 library to plot the CH index and ASW values against the k-value (number of clusters).The CH index is used to assess the differences between different clusters, while the ASW values assess the internal cohesion of each cluster. Both metrics are used to help select the best k-value.
+  Then, for k values from 2 to 5, we used the k-means algorithm for clustering and projected these results onto a 2D graph. Also, for each value of k, a convex hull is computed to represent the boundary of each cluster.
+  Finally, we display the clustering results of these four k-values side-by-side in a 2x2 grid using the grid.range function.
+
+```{r}
+# Plot the CH index against k values
+CHIndexPlot <- ggplot(kMeansMetrics, aes(x=k, y=CH_index)) +
+  geom_point() + geom_line(colour="red") +
+  scale_x_continuous(breaks=1:10, labels=1:10) +
+  labs(y="CH index") + theme(text=element_text(size=20))
+
+# Plot the ASW against k values
+ASWPlot <- ggplot(kMeansMetrics, aes(x=k, y=ASW)) +
+  geom_point() + geom_line(colour="blue") +
+  scale_x_continuous(breaks=1:10, labels=1:10) +
+  labs(y="ASW") + theme(text=element_text(size=20))
+
+# Display both plots side by side
+grid.arrange(CHIndexPlot, ASWPlot, nrow=1)
+```
+CH Index Chart:  
+  In this graph, the CH index reaches a peak when k=2, which indicates that with k=2 we get relatively better clustering because the data points within the clusters are relatively centralized and the distances to other clusters are larger.
+  As the value of k increases, the CH index gradually decreases, which may mean that the increased clusters do not make the data better clustered.
+
+ASW (Average contour coefficient) Graph.
+  Average contour coefficient is a measure of the difference between the average distance of a data point to other data points in its cluster and the average distance of the data point to the nearest other cluster. Values closer to 1 indicate better clustering, while values closer to -1 indicate worse clustering.
+  From the graph, ASW reaches a high value at k=2 and then fluctuates. This means that clustering is relatively better at k=2.
+  Between k=5 and k=6, there is a significant drop in ASW, which may imply that clustering is not as effective between these two k values.
+  
+  Based on these two graphs, we can tentatively conclude that clustering is relatively better at k=2.
+
+
+```{r}
+# For k values ranging from 2 to 5, plot the results of the k-means clustering
+plotList <- list()
+kRange <- 2:5
+for (currentK in kRange) {
+  currentClusters <- kmeans(clustering_numeric_data, currentK, nstart=100, iter.max=100)$cluster
+  kMeansProjection2D <- cbind(project2D, cluster=as.factor(currentClusters), country=clustering_data$country)
+  kMeansHull <- find_convex_hull(kMeansProjection2D, currentClusters)
+
+  currentPlot <- ggplot(kMeansProjection2D, aes(x=PC1, y=PC2)) +
+    geom_point(aes(shape=cluster, color=cluster)) +
+    geom_polygon(data=kMeansHull, aes(group=cluster, fill=cluster), alpha=0.4, linetype=0) +
+    labs(title = sprintf("k = %d", currentK)) +
+    theme(legend.position="none", text=element_text(size=20))
+  
+  plotList[[currentK - 1]] <- currentPlot
+}
+
+# Display k-means clustering results in a 2x2 grid
+grid.arrange(plotList[[1]], plotList[[2]], plotList[[3]], plotList[[4]], nrow=2)
 
 ```
+
+k = 2:
+  The data are divided into two distinct clusters, one of which is predominantly in the negative region of PC1, and the other is concentrated in the region close to 0 of PC1. there is a clear boundary between the two clusters.
+
+k = 3:
+  The data is divided into three clusters. Among them, the red and blue clusters are similar to the division at k = 2.
+  The added green cluster is mainly concentrated in the positive region of PC2, and there is also a clear boundary between it and the blue cluster.
+
+k = 4:
+  The red cluster is further subdivided into two clusters (red and green).
+  The boundaries between the green and purple clusters do not appear to be particularly clear and there may be some overlap.
+  The blue cluster is relatively centralized.
+
+k = 5:
+  The data is divided into five clusters, but here the boundaries between clusters start to become less distinct compared to the k = 4 case.
+  In the negative region of PC1, there are multiple clusters in close proximity to each other with possible overlap.
+  The green and yellow clusters do not seem to have very clear boundaries with the other clusters.
+
+From the above analysis, we see that:
+  The clustering seems to work best when k=2 and k=3 because each cluster has clear boundaries and there is not much overlap.
+  When k increases to 4 or 5, the boundaries between clusters start to blur, especially at k=5, although we can identify more subclusters.
+Combining the previous CH index and ASW analyses, and considering the clarity of clustering and the boundaries between clusters, we believe that k=2 or k=3 can be used as the optimal number of clusters.
+
+
+
+
+
+
+
+
+
 
 
 
